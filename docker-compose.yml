@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: line-balance-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - line-balance-network
+
+  # Optional: Redis cache (Phase 2)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: line-balance-redis
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - line-balance-network
+
+networks:
+  line-balance-network:
+    driver: bridge

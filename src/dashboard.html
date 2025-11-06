@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Line Balance System Demo (Phase 1 MVP)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Use Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for a dark dashboard theme */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        /* Custom slider styles */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #4a5568; /* gray-700 */
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4299e1; /* blue-500 */
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4299e1; /* blue-500 */
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 flex flex-col min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-gray-800 shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <h1 class="text-2xl font-bold text-white">Line Balance System Demo</h1>
+            <p class="text-sm text-gray-400">Phase 1 (MVP) | USER: JASON YY, LIN</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8 flex-grow">
+        <div class="flex flex-col md:flex-row gap-6">
+
+            <!-- === Sidebar: Controls === -->
+            <aside class="w-full md:w-1/3 lg:w-1/4 bg-gray-800 p-6 rounded-lg shadow-xl">
+                <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">Simulation Controls</h2>
+                
+                <!-- 1. Mock Work Order -->
+                <div class="mb-6">
+                    <label for="work-order" class="block text-sm font-medium text-gray-300 mb-2">Select Mock Work Order</label>
+                    <select id="work-order" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="WO_A">Work Order A (Small, ~1200s total time)</option>
+                        <option value="WO_B">Work Order B (Medium, ~3400s total time)</option>
+                        <option value="WO_C">Work Order C (Large, ~8000s total time)</option>
+                    </select>
+                </div>
+                
+                <!-- 2. Target Takt Time -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label for="target-takt" class="block text-sm font-medium text-gray-300">Target Takt Time (ms)</label>
+                        <span id="takt-value" class="text-lg font-bold text-blue-400">80000</span>
+                    </div>
+                    <input type="range" id="target-takt" min="30000" max="150000" value="80000" step="1000" class="w-full">
+                </div>
+
+                <!-- 3. Optimization Goal (Based on Req #1, #2, #3) -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Optimization Goal (Req #1)</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition duration-150">
+                            <input type="radio" name="opt-goal" value="min_stations" class="form-radio text-blue-500 bg-gray-800 border-gray-600 focus:ring-blue-500" checked>
+                            <span class="ml-3 text-white">Minimize Workstations (Req #2)</span>
+                        </label>
+                        <label class="flex items-center p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition duration-150">
+                            <input type="radio" name="opt-goal" value="min_manpower" class="form-radio text-blue-500 bg-gray-800 border-gray-600 focus:ring-blue-500">
+                            <span class="ml-3 text-white">Minimize Manpower (Req #3)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 4. Run Button -->
+                <button id="run-sim" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-200 transform hover:scale-105">
+                    Run Simulation (Call /optimize)
+                </button>
+            </aside>
+
+            <!-- === Main Content: Results === -->
+            <section id="results-container" class="w-full md:w-2/3 lg:w-3/4 hidden">
+                <h2 class="text-xl font-semibold mb-4 text-white">Simulation Results</h2>
+
+                <!-- KPI Grid (Based on feasibility-assessment.md Appendix A) -->
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+                    <div class="bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                        <div class="text-sm text-gray-400 uppercase">Calculated Takt</div>
+                        <div id="kpi-takt" class="text-3xl font-bold text-blue-400">--</div>
+                        <div class="text-xs text-gray-500">ms</div>
+                    </div>
+                    <div class="bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                        <div class="text-sm text-gray-400 uppercase">Total Manpower</div>
+                        <div id="kpi-manpower" class="text-3xl font-bold text-white">--</div>
+                        <div class="text-xs text-gray-500">people</div>
+                    </div>
+                    <div class="bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                        <div class="text-sm text-gray-400 uppercase">Workstations</div>
+                        <div id="kpi-stations" class="text-3xl font-bold text-white">--</div>
+                        <div class="text-xs text-gray-500">stations</div>
+                    </div>
+                    <div class="bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                        <div class="text-sm text-gray-400 uppercase">Avg. Utilization</div>
+                        <div id="kpi-util" class="text-3xl font-bold text-white">--</div>
+                        <div class="text-xs text-gray-500">%</div>
+                    </div>
+                    <div class="bg-gray-800 p-4 rounded-lg shadow-lg text-center col-span-2 md:col-span-1 lg:col-span-1">
+                        <div class="text-sm text-gray-400 uppercase">Bottleneck</div>
+                        <div id="kpi-bottleneck" class="text-3xl font-bold text-red-400">--</div>
+                        <div class="text-xs text-gray-500">station</div>
+                    </div>
+                </div>
+
+                <!-- Visualization (Based on stage-specs.md Phase 1 / Req #22) -->
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <h3 class="text-lg font-semibold mb-4">Workstation Load Distribution (Req #22)</h3>
+                    <div class="relative h-96">
+                        <canvas id="load-chart"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-4 text-gray-500 text-sm mt-8">
+        Interactive Demo
+    </footer>
+
+    <script>
+        // --- Mock Data Store ---
+        // Simulates the backend data (Req #8, #9, #13, #14)
+        const MOCK_WORK_ORDERS = {
+            "WO_A": { totalStdTime: 1200 * 1000 }, // 1200 seconds
+            "WO_B": { totalStdTime: 3400 * 1000 }, // 3400 seconds
+            "WO_C": { totalStdTime: 8000 * 1000 }  // 8000 seconds
+        };
+
+        // --- Global Chart Variable ---
+        let workstationChart;
+
+        // --- Event Listeners ---
+        const taktSlider = document.getElementById('target-takt');
+        const taktValue = document.getElementById('takt-value');
+        const runButton = document.getElementById('run-sim');
+        const resultsContainer = document.getElementById('results-container');
+
+        // Update slider value display
+        taktSlider.addEventListener('input', (e) => {
+            taktValue.textContent = Number(e.target.value).toLocaleString();
+        });
+
+        // Main simulation trigger
+        runButton.addEventListener('click', async () => {
+            // 1. Get all inputs
+            const workOrderId = document.getElementById('work-order').value;
+            const targetTakt = Number(taktSlider.value);
+            const optimizationGoal = document.querySelector('input[name="opt-goal"]:checked').value;
+
+            // 2. Show loading/processing
+            runButton.textContent = "Optimizing...";
+            runButton.disabled = true;
+
+            try {
+                // 3. Call real API (replaced mock simulation)
+                const results = await callOptimizeAPI(workOrderId, targetTakt, optimizationGoal);
+
+                // 4. Update UI with results
+                updateKPIs(results);
+                renderChart(results.stations, targetTakt, results.takt_time_ms);
+                
+                // 5. Show results
+                resultsContainer.classList.remove('hidden');
+                
+                runButton.textContent = "Run Optimization (Call /optimize)";
+            } catch (error) {
+                console.error('Optimization failed:', error);
+                alert(`Optimization failed: ${error.message}\n\nPlease ensure:\n1. API server is running (python src/api_server.py)\n2. Algorithm dependencies are installed\n3. CSV data files exist in data/ folder`);
+                runButton.textContent = "Run Optimization (Call /optimize)";
+            } finally {
+                runButton.disabled = false;
+            }
+        });
+
+        /**
+         * Calls the real /optimize API endpoint
+         * Replaces mock simulation with actual backend integration
+         */
+        async function callOptimizeAPI(workOrderId, targetTakt, goal) {
+            const API_BASE = window.location.origin; // Same origin (served by FastAPI)
+            
+            const response = await fetch(`${API_BASE}/optimize`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    work_order_id: workOrderId,
+                    target_takt: targetTakt,
+                    optimization_goal: goal,
+                    max_workers_per_station: 8,
+                    fixed_stations: 0
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || `API Error: ${response.status}`);
+            }
+
+            return await response.json();
+        }
+
+        /**
+         * FALLBACK: Mock simulation (kept for offline testing)
+         * This is a simplified heuristic for demo purposes.
+         */
+        function runMockSimulation(workOrderId, targetTakt, goal) {
+            const totalTime = MOCK_WORK_ORDERS[workOrderId].totalStdTime;
+
+            // --- Core Algorithm Logic (Mock) ---
+            // Calculate theoretical minimum stations
+            let theoreticalMinStations = Math.ceil(totalTime / targetTakt);
+            let calculatedStations;
+
+            // Apply optimization goal (Req #1)
+            if (goal === 'min_stations') {
+                // Goal: Minimize Workstations (Req #2)
+                // Stick to the theoretical minimum, which may cause a high bottleneck
+                calculatedStations = theoreticalMinStations;
+            } else {
+                // Goal: Minimize Manpower (Req #3)
+                // This might involve adding a station to smooth the line and reduce
+                // the need for floaters/support, or to hit a specific takt.
+                // For this demo, we'll add a station to show a different result.
+                calculatedStations = theoreticalMinStations + 1;
+            }
+            
+            // Assume 1 person per station for this demo (simplification)
+            let calculatedManpower = calculatedStations; 
+
+            // --- Generate Mock Station Data ---
+            // This simulates the algorithm distributing tasks
+            const stations = [];
+            const avgTime = totalTime / calculatedStations;
+            let timeRemaining = totalTime;
+
+            for (let i = 0; i < calculatedStations; i++) {
+                let stationTime;
+                if (i === 0) {
+                    // Create an intentional bottleneck to make the chart interesting
+                    stationTime = avgTime * 1.15; // 15% over average
+                } else if (i === calculatedStations - 1) {
+                    // Give the last station whatever time is left
+                    stationTime = timeRemaining;
+                } else {
+                    // Create some random variation
+                    const jitter = (Math.random() - 0.5) * 0.2; // +/- 10%
+                    stationTime = avgTime * (1 + jitter);
+                }
+                
+                // Ensure time doesn't go crazy
+                stationTime = Math.max(avgTime * 0.8, stationTime);
+                stationTime = Math.min(avgTime * 1.2, stationTime);
+                
+                // On the second-to-last, adjust to not overshoot
+                if (i === calculatedStations - 2) {
+                    if (timeRemaining - stationTime < avgTime * 0.8) {
+                        stationTime = timeRemaining - (avgTime * 0.8);
+                    }
+                }
+
+                timeRemaining -= stationTime;
+                
+                stations.push({
+                    id: `WS-${String(i + 1).padStart(3, '0')}`,
+                    total_time_ms: Math.round(stationTime),
+                    idle_time_ms: 0 // Will calculate this based on final takt
+                });
+            }
+
+            // --- Calculate Final KPIs (Based on Appendix A) ---
+            const bottleneck = stations.reduce((max, s) => s.total_time_ms > max.total_time_ms ? s : max, stations[0]);
+            const calculatedTaktTime = bottleneck.total_time_ms;
+
+            // Recalculate idle time
+            stations.forEach(s => {
+                s.idle_time_ms = calculatedTaktTime - s.total_time_ms;
+            });
+            
+            const totalIdleTime = stations.reduce((sum, s) => sum + s.idle_time_ms, 0);
+            const totalWorkTime = stations.reduce((sum, s) => sum + s.total_time_ms, 0);
+            const totalCapacity = calculatedStations * calculatedTaktTime;
+            const avgUtilization = (totalWorkTime / totalCapacity) * 100;
+
+            // Return the structured result (matches feasibility-assessment.md Appendix A)
+            return {
+                work_order_id: workOrderId,
+                objectives: { goal: goal, targetTakt: targetTakt },
+                stations: stations,
+                takt_time_ms: calculatedTaktTime,
+                bottleneck_station_id: bottleneck.id,
+                manpower_total: calculatedManpower,
+                line_count: calculatedStations,
+                utilization_avg: avgUtilization
+            };
+        }
+
+        /**
+         * Updates the KPI cards in the UI
+         */
+        function updateKPIs(results) {
+            document.getElementById('kpi-takt').textContent = results.takt_time_ms.toLocaleString();
+            document.getElementById('kpi-manpower').textContent = results.manpower_total;
+            document.getElementById('kpi-stations').textContent = results.line_count;
+            document.getElementById('kpi-util').textContent = results.utilization_avg.toFixed(1);
+            document.getElementById('kpi-bottleneck').textContent = results.bottleneck_station_id;
+        }
+
+        /**
+         * Renders the workstation load chart (Req #22)
+         */
+        function renderChart(stations, targetTakt, calculatedTakt) {
+            const ctx = document.getElementById('load-chart').getContext('2d');
+            
+            // Destroy old chart if it exists
+            if (workstationChart) {
+                workstationChart.destroy();
+            }
+
+            const labels = stations.map(s => s.id);
+            const data = stations.map(s => s.total_time_ms);
+
+            workstationChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Workstation Load (ms)',
+                            data: data,
+                            backgroundColor: 'rgba(59, 130, 246, 0.5)', // blue-500
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Target Takt Time (ms)',
+                            data: Array(stations.length).fill(targetTakt),
+                            type: 'line',
+                            borderColor: 'rgba(239, 68, 68, 1)', // red-500
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Calculated Takt (Bottleneck) (ms)',
+                            data: Array(stations.length).fill(calculatedTakt),
+                            type: 'line',
+                            borderColor: 'rgba(245, 158, 11, 1)', // amber-500
+                            borderWidth: 2,
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Time (ms)',
+                                color: '#d1d5db' // gray-300
+                            },
+                            ticks: { color: '#d1d5db' },
+                            grid: { color: '#4b5563' } // gray-600
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Workstations',
+                                color: '#d1d5db'
+                            },
+                            ticks: { color: '#d1d5db' },
+                            grid: { color: '#4b5563' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#d1d5db' // gray-300
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Trigger initial slider value display
+        taktValue.textContent = Number(taktSlider.value).toLocaleString();
+    </script>
+</body>
+</html>
