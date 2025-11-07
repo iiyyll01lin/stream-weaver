@@ -1,6 +1,6 @@
 # Phase 1 Architecture Design
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-06  
+**Document Version**: 1.0 | **Last Updated**: 2025-11-07  
 **Related Documents**:
 - [Implementation Guide](PHASE1_IMPLEMENTATION_EN.md)
 - [API Specification](PHASE1_API_SPEC_EN.md)
@@ -121,11 +121,11 @@ Phase 1 adopts a **three-tier architecture** to achieve separation of concerns a
 
 **Technology Choices**:
 
-| Technology | Purpose | Reason for Selection |
-|-----------|---------|---------------------|
-| Tailwind CSS | UI Styling | Rapid prototyping, minimal custom CSS |
-| Chart.js | Data Visualization | Lightweight, supports Gantt-like bar charts |
-| Vanilla JavaScript | Interaction Logic | No framework dependency, low complexity |
+| Technology         | Purpose            | Reason for Selection                        |
+| ------------------ | ------------------ | ------------------------------------------- |
+| Tailwind CSS       | UI Styling         | Rapid prototyping, minimal custom CSS       |
+| Chart.js           | Data Visualization | Lightweight, supports Gantt-like bar charts |
+| Vanilla JavaScript | Interaction Logic  | No framework dependency, low complexity     |
 
 **Code Structure**:
 ```html
@@ -252,12 +252,12 @@ def parse_algorithm_output(
 
 **Error Handling Strategy**:
 
-| Exception Type | HTTP Status | Handling Method |
-|---------------|-------------|-----------------|
-| `ValueError` | 400 | Invalid parameter, return error message |
-| `subprocess.TimeoutExpired` | 500 | Algorithm timeout |
-| `FileNotFoundError` | 500 | CSV file not found |
-| Generic `Exception` | 500 | Log stack trace, return generic error |
+| Exception Type              | HTTP Status | Handling Method                         |
+| --------------------------- | ----------- | --------------------------------------- |
+| `ValueError`                | 400         | Invalid parameter, return error message |
+| `subprocess.TimeoutExpired` | 500         | Algorithm timeout                       |
+| `FileNotFoundError`         | 500         | CSV file not found                      |
+| Generic `Exception`         | 500         | Log stack trace, return generic error   |
 
 ---
 
@@ -321,21 +321,21 @@ for j in range(num_stations):
 
 ### Full Stack Overview
 
-| Layer | Component | Technology | Version |
-|-------|-----------|-----------|---------|
-| **Frontend** | UI Framework | Tailwind CSS | 3.x (CDN) |
-| | Charting Library | Chart.js | 4.x (CDN) |
-| | HTTP Client | Fetch API | Native Browser |
-| **Backend** | Web Framework | FastAPI | 0.104+ |
-| | Data Validation | Pydantic | 2.0+ |
-| | ASGI Server | Uvicorn | 0.24+ |
-| | CORS Middleware | FastAPI Middleware | Built-in |
-| **Algorithm** | Solver | Google OR-Tools | 9.7+ |
-| | CSV Parsing | pandas | 2.0+ |
-| | JSON Output | Python json | Built-in |
-| **Infrastructure** | Containerization | Docker | 24+ |
-| | Orchestration | Docker Compose | 2.x |
-| | Package Management | pip | 23+ |
+| Layer              | Component          | Technology         | Version        |
+| ------------------ | ------------------ | ------------------ | -------------- |
+| **Frontend**       | UI Framework       | Tailwind CSS       | 3.x (CDN)      |
+|                    | Charting Library   | Chart.js           | 4.x (CDN)      |
+|                    | HTTP Client        | Fetch API          | Native Browser |
+| **Backend**        | Web Framework      | FastAPI            | 0.104+         |
+|                    | Data Validation    | Pydantic           | 2.0+           |
+|                    | ASGI Server        | Uvicorn            | 0.24+          |
+|                    | CORS Middleware    | FastAPI Middleware | Built-in       |
+| **Algorithm**      | Solver             | Google OR-Tools    | 9.7+           |
+|                    | CSV Parsing        | pandas             | 2.0+           |
+|                    | JSON Output        | Python json        | Built-in       |
+| **Infrastructure** | Containerization   | Docker             | 24+            |
+|                    | Orchestration      | Docker Compose     | 2.x            |
+|                    | Package Management | pip                | 23+            |
 
 ### Dependency Relationships
 
@@ -519,6 +519,263 @@ python3 sche-algo.py \
 
 ---
 
+## 📐 Extended Data Flow (Phase 1.5)
+
+Phase 1.5 adds support for offline task handling (REQ #4, #15) and adjustable task merging (REQ #13).
+
+### Extended Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  CSV Input Processing (Extended)                            │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  read_problem_from_csv_extended()                     │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Parse Extended Columns                         │  │  │
+│  │  │  - offline_flag (0=online, 1=offline)           │  │  │
+│  │  │  - adjustable (0=fixed, 1=adjustable)           │  │  │
+│  │  │  - action_type (screw, glue, clip, test)        │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  └────────────────────┼───────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Task Classification Layer (NEW)                            │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  filter_and_classify_tasks()                          │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Separate Tasks by Type                         │  │  │
+│  │  │  ├── online_tasks = [t for t if offline==0]     │  │  │
+│  │  │  ├── offline_tasks = [t for t if offline==1]    │  │  │
+│  │  │  ├── adjustable_tasks = [t for t if adj==1]     │  │  │
+│  │  │  └── fixed_tasks = [t for t if adj==0]          │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  │                    │                                   │  │
+│  │  ┌─────────────────▼───────────────────────────────┐  │  │
+│  │  │  Identify Merge Candidates                      │  │  │
+│  │  │  - Group adjustable tasks by action_type        │  │  │
+│  │  │  - Create merge pairs (same action_type)        │  │  │
+│  │  │  - Example: tasks [1,3,6] all "screw" → pairs  │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  CP-SAT Solver (Modified for Phase 1.5)                     │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  solve_with_extensions()                              │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Decision Variables (Extended)                  │  │  │
+│  │  │  - assign[t, p]: task → station (online only)   │  │  │
+│  │  │  - merge[(t1,t2)]: merge decision vars          │  │  │
+│  │  │  - effective_duration[t]: adjusted duration     │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  │                    │                                   │  │
+│  │  ┌─────────────────▼───────────────────────────────┐  │  │
+│  │  │  Constraints (Extended)                         │  │  │
+│  │  │  1. Assignment (online tasks only)              │  │  │
+│  │  │     model.Add(sum(assign[t,p] for p) == 1)      │  │  │
+│  │  │                                                  │  │  │
+│  │  │  2. Precedence (online-to-online only)          │  │  │
+│  │  │     if both tasks online: apply constraint      │  │  │
+│  │  │     if before offline: assume satisfied         │  │  │
+│  │  │                                                  │  │  │
+│  │  │  3. Capacity (with effective duration)          │  │  │
+│  │  │     sum(assign[t,p] * eff_dur[t]) <= cycle_time │  │  │
+│  │  │                                                  │  │  │
+│  │  │  4. Merge Constraints (NEW)                     │  │  │
+│  │  │     If merge[(t1,t2)] == 1:                     │  │  │
+│  │  │       → assign[t1,p] == assign[t2,p]            │  │  │
+│  │  │       → eff_dur[t1] = 0.9*(dur[t1]+dur[t2])     │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  │                    │                                   │  │
+│  │  ┌─────────────────▼───────────────────────────────┐  │  │
+│  │  │  Objective Function (Enhanced)                  │  │  │
+│  │  │  - Primary: minimize num_stations               │  │  │
+│  │  │  - Secondary: maximize merge_count              │  │  │
+│  │  │  - Formulation: min(stations*1000 - merges)     │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Post-Processing (Offline Task Assignment)                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  assign_offline_tasks()                               │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  For each offline task:                         │  │  │
+│  │  │    assignment[t] = -1  (special marker)         │  │  │
+│  │  │    offline_station["tasks"].append(t)           │  │  │
+│  │  │    offline_station["load"] += duration[t]       │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  KPI Calculation (Extended)                                 │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  compute_kpis_extended()                              │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Standard KPIs (for online tasks)               │  │  │
+│  │  │  - total_stations, bottleneck_load, etc.        │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  │                    │                                   │  │
+│  │  ┌─────────────────▼───────────────────────────────┐  │  │
+│  │  │  Offline Metrics (NEW)                          │  │  │
+│  │  │  - offline_tasks_count = len(offline_tasks)     │  │  │
+│  │  │  - offline_total_time = sum(durations)          │  │  │
+│  │  │  - online_stations = stations with online only  │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  │                    │                                   │  │
+│  │  ┌─────────────────▼───────────────────────────────┐  │  │
+│  │  │  Merge Metrics (NEW)                            │  │  │
+│  │  │  - merged_pairs = [(t1,t2) where merge==1]      │  │  │
+│  │  │  - merge_count = len(merged_pairs)              │  │  │
+│  │  │  - efficiency_gain = time_saved / original * 100│  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  JSON Output (Extended Format)                              │
+│  {                                                           │
+│    "kpis": {                                                 │
+│      "total_stations": 3,                                    │
+│      "online_stations": 2,                                   │
+│      "offline_tasks_count": 3,                               │
+│      "merged_tasks_count": 2,                                │
+│      "merge_efficiency_gain": 10.5                           │
+│    },                                                        │
+│    "stations": [                                             │
+│      {                                                       │
+│        "station_index": 0,                                   │
+│        "online_tasks": [1, 3],                               │
+│        "offline_tasks": [],                                  │
+│        "adjustable_tasks": [1, 3],                           │
+│        "merged_task_pairs": ["1-3"],                         │
+│        "online_load": 7,                                     │
+│        "offline_load": 0                                     │
+│      },                                                      │
+│      {                                                       │
+│        "station_index": -1,  // Offline station marker      │
+│        "offline_tasks": [2, 5, 8],                           │
+│        "offline_load": 12                                    │
+│      }                                                       │
+│    ]                                                         │
+│  }                                                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Extended API Request/Response
+
+**Phase 1.5 API Request (Extended)**:
+```json
+POST /optimize
+{
+  "work_order_id": "WO_A",
+  "optimization_goal": "min_stations",
+  "target_takt": 60,
+  "max_workers_per_station": 3,
+  
+  // Phase 1.5 NEW fields
+  "enable_offline_handling": true,
+  "enable_task_merging": true,
+  "merge_efficiency_gain": 0.10
+}
+```
+
+**Phase 1.5 API Response (Extended)**:
+```json
+{
+  "work_order_id": "WO_A",
+  "optimization_goal": "min_stations",
+  "stations": [
+    {
+      "id": "WS-001",
+      "total_time_ms": 45000,
+      "idle_time_ms": 15000,
+      "workers": 2,
+      "utilization_pct": 75.0,
+      "assigned_tasks": [1, 2, 3],
+      
+      // Phase 1.5 NEW fields
+      "online_tasks": [1, 3],
+      "offline_tasks": [2],
+      "adjustable_tasks": [1, 3],
+      "merged_task_pairs": [[1, 3]],
+      "online_load_ms": 42000,
+      "offline_load_ms": 3000
+    },
+    {
+      "id": "OFFLINE-001",
+      "total_time_ms": 18000,
+      "workers": 0,
+      "assigned_tasks": [4, 5, 6],
+      "online_tasks": [],
+      "offline_tasks": [4, 5, 6],
+      "offline_load_ms": 18000
+    }
+  ],
+  "takt_time_ms": 60000,
+  "total_workers": 2,
+  "solve_time_sec": 1.25,
+  
+  // Phase 1.5 NEW fields
+  "online_stations": 1,
+  "offline_tasks_count": 4,
+  "offline_total_time_ms": 21000,
+  "merged_tasks_count": 1,
+  "merge_efficiency_gain_pct": 10.5
+}
+```
+
+### Data Validation Flow (Phase 1.5)
+
+```
+┌────────────────────────────────────┐
+│  Frontend Form Validation         │
+│  - Check target_takt > 0           │
+│  - Check work_order_id exists      │
+│  - Validate boolean flags          │
+└──────────────┬─────────────────────┘
+               │
+               ▼
+┌────────────────────────────────────┐
+│  Pydantic Validation (Extended)    │
+│  class OptimizeRequest:            │
+│    enable_offline_handling: bool   │
+│    enable_task_merging: bool       │
+│    merge_efficiency_gain: float    │
+│                                    │
+│  Validators:                       │
+│  - 0 <= merge_efficiency <= 0.5    │
+└──────────────┬─────────────────────┘
+               │
+               ▼
+┌────────────────────────────────────┐
+│  CSV Schema Validation             │
+│  - Check offline_flag in {0, 1}    │
+│  - Check adjustable in {0, 1}      │
+│  - Validate action_type not empty  │
+└──────────────┬─────────────────────┘
+               │
+               ▼
+┌────────────────────────────────────┐
+│  Business Logic Validation         │
+│  - Warn if all tasks offline       │
+│  - Warn if no adjustable tasks     │
+│  - Check merge candidates exist    │
+└────────────────────────────────────┘
+```
+
+---
+
+
 ## Deployment Architecture
 
 ### Development Environment
@@ -625,12 +882,12 @@ CMD ["python3", "src/api_server.py"]
 
 **Known Risks**:
 
-| Risk | Severity | Mitigation Plan (Future) |
-|------|----------|-------------------------|
-| Unrestricted API Access | High | Implement JWT authentication |
-| CSV Injection | Medium | Add file content validation |
-| DoS via Large Requests | Medium | Add rate limiting (e.g., 10 req/min) |
-| Algorithm Timeout Abuse | Low | Already limited to 30 seconds |
+| Risk                    | Severity | Mitigation Plan (Future)             |
+| ----------------------- | -------- | ------------------------------------ |
+| Unrestricted API Access | High     | Implement JWT authentication         |
+| CSV Injection           | Medium   | Add file content validation          |
+| DoS via Large Requests  | Medium   | Add rate limiting (e.g., 10 req/min) |
+| Algorithm Timeout Abuse | Low      | Already limited to 30 seconds        |
 
 ### Input Validation Mechanisms
 
@@ -728,22 +985,22 @@ solver.parameters.search_branching = cp_model.FIXED_SEARCH
 
 ### A. API Endpoint Mapping Table
 
-| Endpoint | Method | Purpose | Phase |
-|----------|--------|---------|-------|
-| `/` | GET | Serve frontend HTML | 1 |
-| `/optimize` | POST | Core optimization | 1 |
-| `/workstations` | GET | Query workstation summary | 1 |
-| `/takt-summary` | GET | Query takt analysis | 1 |
-| `/health` | GET | Service health check | 1 |
-| `/api/docs` | GET | Swagger UI | 1 |
+| Endpoint        | Method | Purpose                   | Phase |
+| --------------- | ------ | ------------------------- | ----- |
+| `/`             | GET    | Serve frontend HTML       | 1     |
+| `/optimize`     | POST   | Core optimization         | 1     |
+| `/workstations` | GET    | Query workstation summary | 1     |
+| `/takt-summary` | GET    | Query takt analysis       | 1     |
+| `/health`       | GET    | Service health check      | 1     |
+| `/api/docs`     | GET    | Swagger UI                | 1     |
 
 ### B. Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WORKSPACE_ROOT` | `/workspace` | Project root directory |
-| `DATA_DIR` | `${WORKSPACE_ROOT}/data` | CSV file storage |
-| `ALGO_SCRIPT` | `${WORKSPACE_ROOT}/sche-algo.py` | Algorithm script path |
+| Variable         | Default                          | Description            |
+| ---------------- | -------------------------------- | ---------------------- |
+| `WORKSPACE_ROOT` | `/workspace`                     | Project root directory |
+| `DATA_DIR`       | `${WORKSPACE_ROOT}/data`         | CSV file storage       |
+| `ALGO_SCRIPT`    | `${WORKSPACE_ROOT}/sche-algo.py` | Algorithm script path  |
 
 ### C. Log Format
 
@@ -751,7 +1008,3 @@ solver.parameters.search_branching = cp_model.FIXED_SEARCH
 [2025-01-14 10:30:45] INFO - [API] Executing command: python3 sche-algo.py --tasks_csv ...
 [2025-01-14 10:30:46] INFO - [API] Algorithm completed, time: 0.85 seconds
 ```
-
----
-
-**Document End** | For questions contact architecture team

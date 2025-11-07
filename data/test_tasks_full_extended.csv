@@ -1,0 +1,13 @@
+task_id,duration,offline_flag,adjustable,action_type,complexity_level,part_id,predecessors
+1,274,0,1,screw,simple,SCREW_M3,
+2,223,1,0,glue,medium,THERMAL_PAD,1
+3,186,0,1,screw,simple,SCREW_M3,1
+4,315,0,0,test,medium,POST_TEST,"2,3"
+5,117,0,1,mount,medium,FAN_BRACKET,4
+6,264,1,0,inspection,simple,VISUAL_INSPECT,5
+7,234,0,1,screw,simple,SCREW_M4,"5,6"
+8,162,0,1,clip,simple,CABLE_CLIP,7
+9,306,0,1,mount,complex,GPU_GTX3080,8
+10,153,1,0,quality_check,medium,QC_STATION,9
+11,198,0,1,mount,complex,HDD_2TB,10
+12,276,0,1,clip,simple,CABLE_SATA,11

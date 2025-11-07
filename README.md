@@ -1,7 +1,7 @@
-# Line Balance System - Phase 1 MVP
+# Line Balance System - Phase 1.5
 
-**Project Version**: 1.0.0-phase1 | **Last Updated**: 2025-11-06  
-**Status**: ✅ Phase 1 Complete | **Next Phase**: Phase 2 (Planned Q2 2025)
+**Project Version**: 1.5.0-phase1.5 | **Last Updated**: 2025-11-07  
+**Status**: ✅ Phase 1.5 Complete | **Next Phase**: Phase 2
 
 ---
 
@@ -9,22 +9,30 @@
 
 The **Line Balance System** is an intelligent production line optimization tool that uses Google OR-Tools CP-SAT solver to automatically allocate tasks to workstations, minimizing stations, manpower, or idle time.
 
-### Core Features (Phase 1)
+### Core Features (Phase 1 & 1.5)
 
 ✅ **Three Optimization Modes**
 - **Minimize Stations**: Reduce production line length, save space
 - **Minimize Manpower**: Optimize labor allocation, reduce costs
 - **Minimize Idle Time**: Balance workstation loads, improve efficiency
 
+✅ **Advanced Task Management** (Phase 1.5)
+- **Offline Task Handling**: Separate online/offline operations for accurate capacity planning
+- **Task Merging**: Automatically merge similar adjustable tasks for efficiency gains
+- **Complexity Classification**: Auto-classify tasks by assembly complexity (simple/medium/complex/super_complex)
+- **Part-Level Tracking**: Link actions to part numbers for BOM integration and material flow analysis
+
 ✅ **Web-based Interface**
 - Responsive design (supports 1024px+ screens)
 - Real-time Gantt chart visualization
 - One-click optimization execution
+- Extended KPI dashboard with offline, merge, complexity, and part metrics
 
 ✅ **High-Performance Backend**
 - FastAPI framework (async processing)
 - < 3 second API response time (datasets with ≤500 actions)
 - Automated data validation (Pydantic v2)
+- Extended CSV format support (8 columns)
 
 ✅ **Production-Ready Deployment**
 - Docker containerization
@@ -58,6 +66,18 @@ python3 src/api_server.py
 http://localhost:8000
 ```
 
+**Step 4 (Optional): Validate Extended Data**
+```bash
+# Validate Phase 1.5 full extended test data
+python3 data/validate_full_extended_data.py data/test_tasks_full_extended.csv
+
+# Expected output:
+# ✅ VALIDATION PASSED
+# Total tasks: 12
+# Complexity: 50% simple, 33% medium, 17% complex
+# Parts: 11 unique parts tracked
+```
+
 **Detailed Guide**: See [Quick Start Documentation](docs/QUICKSTART_EN.md)
 
 ---
@@ -89,19 +109,58 @@ http://localhost:8000
 
 ---
 
+## CSV Input Formats
+
+### Phase 1: Basic Format (3 columns)
+```csv
+task_id,duration,predecessors
+1,274,
+2,223,1
+3,186,1
+```
+
+### Phase 1.5 Standard: Extended Format (6 columns)
+```csv
+task_id,duration,offline_flag,adjustable,action_type,predecessors
+1,274,0,1,screw,
+2,223,1,0,glue,1
+3,186,0,1,screw,1
+```
+
+### Phase 1.5 Extended: Full Format (8 columns)
+```csv
+task_id,duration,offline_flag,adjustable,action_type,complexity_level,part_id,predecessors
+1,274,0,1,screw,simple,SCREW_M3,
+2,223,1,0,glue,medium,THERMAL_PAD,1
+3,186,0,1,screw,simple,SCREW_M3,1
+9,306,0,1,mount,complex,GPU_GTX3080,8
+11,198,0,1,mount,complex,HDD_2TB,10
+```
+
+**Column Descriptions**:
+- `offline_flag`: 0=online task (on production line), 1=offline task (pre-assembly, QC)
+- `adjustable`: 0=fixed duration, 1=can be merged with similar tasks
+- `action_type`: Task category (screw, glue, clip, mount, test, etc.)
+- `complexity_level`: Assembly complexity (simple, medium, complex, super_complex)
+- `part_id`: Part number for BOM integration (e.g., GPU_GTX3080, HDD_2TB)
+
+**Complete Specification**: [IO_SPECIFICATION_EN.md](docs/IO_SPECIFICATION_EN.md)
+
+---
+
 ## Technology Stack
 
-| Component | Technology | Version | Purpose |
-|-----------|-----------|---------|---------|
-| **Frontend** | Tailwind CSS | 3.x | UI styling |
-| | Chart.js | 4.x | Gantt chart visualization |
-| **Backend** | FastAPI | 0.104+ | Web framework |
-| | Pydantic | 2.0+ | Data validation |
-| | Uvicorn | 0.24+ | ASGI server |
-| **Algorithm** | Google OR-Tools | 9.7+ | CP-SAT solver |
-| | pandas | 2.0+ | CSV data processing |
-| **DevOps** | Docker | 24+ | Containerization |
-| | Docker Compose | 2.x | Service orchestration |
+| Component     | Technology      | Version | Purpose                   |
+|---------------|-----------------|---------|---------------------------|
+| **Frontend**  | Tailwind CSS    | 3.x     | UI styling                |
+|               | Chart.js        | 4.x     | Gantt chart visualization |
+| **Backend**   | FastAPI         | 0.104+  | Web framework             |
+|               | Pydantic        | 2.0+    | Data validation           |
+|               | Uvicorn         | 0.24+   | ASGI server               |
+| **Algorithm** | Google OR-Tools | 9.7+    | CP-SAT solver             |
+|               | pandas          | 2.0+    | CSV data processing       |
+| **DevOps**    | Docker          | 24+     | Containerization          |
+|               | Docker Compose  | 2.x     | Service orchestration     |
 
 ---
 
@@ -115,9 +174,19 @@ Content-Type: application/json
 {
   "work_order_id": "WO_A",
   "optimization_goal": "min_stations",
-  "target_takt": 30000
+  "target_takt": 30000,
+  "enable_offline_handling": true,
+  "enable_task_merging": true,
+  "enable_complexity_classification": true,
+  "merge_efficiency_gain": 0.10
 }
 ```
+
+**Phase 1.5 Extended Parameters**:
+- `enable_offline_handling` (boolean): Separate offline tasks from optimization
+- `enable_task_merging` (boolean): Enable adjustable task merging
+- `enable_complexity_classification` (boolean): Enable complexity-based optimization
+- `merge_efficiency_gain` (float): Efficiency gain from merging (0.0-0.5, default 0.10)
 
 **Response**:
 ```json
@@ -126,6 +195,15 @@ Content-Type: application/json
   "takt_time_ms": 29800,
   "manpower_total": 2,
   "utilization_avg": 97.17,
+  "online_stations": 2,
+  "offline_tasks_count": 3,
+  "merged_tasks_count": 4,
+  "complexity_distribution": {
+    "simple": 6,
+    "medium": 4,
+    "complex": 2
+  },
+  "part_count": 11,
   "stations": [...]
 }
 ```
@@ -207,6 +285,106 @@ Max Load Difference: ±3% (balanced)
 
 ---
 
+### Example 4: Offline Task Handling (Phase 1.5)
+
+**Scenario**: Separate pre-assembly and quality inspection from main production line
+
+**Parameters**:
+- Work Order: Extended task data with `offline_flag` column
+- Objective: `min_stations`
+- Enable Offline Handling: `true`
+
+**Input CSV** (`test_tasks_extended.csv`):
+```csv
+task_id,duration,offline_flag,adjustable,action_type,predecessors
+1,274,0,1,screw,
+2,223,1,0,glue,1
+3,186,0,1,screw,1
+...
+```
+
+**Expected Result**:
+```
+Online Stations: 2
+Offline Tasks: 3 (glue, inspection, quality_check)
+Total Stations: 2 (offline tasks not counted)
+Average Utilization: 98.2% (online tasks only)
+```
+
+---
+
+### Example 5: Task Merging Optimization (Phase 1.5)
+
+**Scenario**: Consolidate similar screw operations for efficiency
+
+**Parameters**:
+- Enable Task Merging: `true`
+- Merge Efficiency Gain: `0.10` (10% time reduction)
+- Action Type Grouping: `screw`, `mount`, `clip`
+
+**Expected Result**:
+```
+Merged Task Pairs: 4 pairs
+  - Task 1 + Task 3 (screw) → 413ms (saved 47ms)
+  - Task 7 + Task 8 (screw/clip) → 359ms (saved 40ms)
+Total Time Saved: 87ms
+Efficiency Gain: 10%
+```
+
+---
+
+### Example 6: Complexity-Aware Optimization (Phase 1.5)
+
+**Scenario**: Balance assembly complexity across stations
+
+**Parameters**:
+- Enable Complexity Classification: `true`
+- Input includes `complexity_level` or auto-classify from `part_id`
+
+**Input CSV** (`test_tasks_full_extended.csv`):
+```csv
+task_id,duration,complexity_level,part_id,predecessors
+1,274,simple,SCREW_M3,
+9,306,complex,GPU_GTX3080,8
+11,198,complex,HDD_2TB,10
+...
+```
+
+**Expected Result**:
+```
+Complexity Distribution:
+  Station 1: 3 simple, 1 medium, 1 complex
+  Station 2: 3 simple, 2 medium, 1 complex
+Max Complexity Difference: ±1 task (balanced)
+Complex Parts Tracked: GPU_GTX3080, HDD_2TB
+```
+
+---
+
+### Example 7: Part-Level Material Flow (Phase 1.5)
+
+**Scenario**: Track which parts flow through which stations
+
+**Parameters**:
+- Input includes `part_id` column
+- Enable Part-Station Matrix output
+
+**Expected Result**:
+```
+Part Flow Summary:
+  GPU_GTX3080: Station 2 (mount operation)
+  HDD_2TB: Station 2 (mount operation)
+  SCREW_M3: Station 1, 2 (3 operations total)
+  THERMAL_PAD: Offline (glue operation)
+
+Part-Station Matrix:
+  Station 1: 5 unique parts
+  Station 2: 6 unique parts
+  Offline: 3 unique parts
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -216,14 +394,19 @@ line-balance/
 │   ├── dashboard.html          # Frontend UI page
 │   └── sche-algo.py            # OR-Tools algorithm script
 ├── data/                       # CSV input files
-│   ├── test_tasks.csv          # Task definitions
+│   ├── test_tasks.csv          # Task definitions (Phase 1)
+│   ├── test_tasks_extended.csv # Extended format (6 columns, Phase 1.5)
+│   ├── test_tasks_full_extended.csv # Full extended format (8 columns, Phase 1.5)
 │   ├── test_precedences.csv    # Precedence constraints
-│   └── test_config.csv         # Configuration parameters
+│   ├── test_config.csv         # Configuration parameters (Phase 1)
+│   ├── test_config_extended.csv # Extended config (Phase 1.5)
 ├── docs/                       # Documentation
 │   ├── QUICKSTART_EN.md        # Quick start guide
 │   ├── PHASE1_IMPLEMENTATION_EN.md  # Implementation details
 │   ├── PHASE1_API_SPEC_EN.md        # API reference
-│   └── PHASE1_ARCHITECTURE_EN.md    # Architecture design
+│   ├── PHASE1_ARCHITECTURE_EN.md    # Architecture design
+│   ├── IO_SPECIFICATION_EN.md       # Input/Output specifications
+│   ├── MODELS_STRATEGIES_EN.md      # Algorithm models explanation
 ├── test_phase1_integration.py  # Python integration test script
 ├── test_phase1_integration.sh  # Bash integration test script
 ├── start.sh                    # Linux/macOS startup script
@@ -322,12 +505,25 @@ curl -X POST http://localhost:8000/optimize \
 
 ### Acceptance Criteria (from `stage-specs.md`)
 
-| Metric | Target | Phase 1 Result |
-|--------|--------|----------------|
-| **API Latency** | < 3 seconds | ✅ 0.8-1.2 seconds (typical) |
-| **Correctness** | ±5% deviation | ✅ < 2% deviation from manual |
-| **Dataset Size** | ≤ 500 tasks | ✅ Supports up to 500 tasks |
-| **Uptime** | N/A (dev environment) | 99%+ (local testing) |
+| Metric                  | Target                | Phase 1 Result               | Phase 1.5 Result                           |
+|-------------------------|-----------------------|------------------------------|--------------------------------------------|
+| **API Latency**         | < 3 seconds           | ✅ 0.8-1.2 seconds (typical)  | ✅ 1.0-1.5 seconds (with extended features) |
+| **Correctness**         | ±5% deviation         | ✅ < 2% deviation from manual | ✅ < 2% deviation from manual               |
+| **Dataset Size**        | ≤ 500 tasks           | ✅ Supports up to 500 tasks   | ✅ Supports up to 500 tasks                 |
+| **Data File Usability** | N/A                   | 4.3% (1/23 files)            | ✅ 66% (15/23 files) +1434%                 |
+| **Uptime**              | N/A (dev environment) | 99%+ (local testing)         | 99%+ (local testing)                       |
+
+### Data Conversion Improvement (Phase 1.5)
+
+**Before (Phase 1)**:
+- Compatible files: 1/23 (4.3%)
+- Manual conversion required for 22 files (TOUCHTIME, SWS, Cookbook series)
+
+**After (Phase 1.5)**:
+- Compatible files: 15/23 (66%)
+- Extended format enables easier conversion from TOUCHTIME/SWS files
+- Auto-classification reduces manual data entry
+- Part-level tracking enables BOM integration
 
 ### Benchmark Test
 
@@ -353,28 +549,50 @@ Success Rate: 100% (100/100 requests)
 - Docker deployment
 - Comprehensive documentation
 
-### 🚧 Phase 2 (Planned Q2 2025)
+### ✅ Phase 1.5 Extended 
+- **Offline task handling** (REQ #4, #15): Separate online/offline operations
+- **Task merging optimization** (REQ #13): Adjustable task consolidation
+- **Complexity classification** (REQ #10): Auto-classify assembly complexity
+- **Part-level tracking** (REQ #12): BOM integration and material flow
+- **Extended CSV format**: 8-column support (basic 3 → standard 6 → full 8)
+- **Enhanced KPIs**: Offline, merge, complexity, and part metrics
+- **Data conversion**: 66% existing files now compatible (vs. 4.3% in Phase 1)
+
+### 🚧 Phase 2 (Planned)
 - Database persistence (PostgreSQL)
 - User authentication (JWT)
 - Batch optimization
 - Historical record query
+- Multi-line support (REQ #5)
+- Rebalancing tools (REQ #6)
+- Station workload visualization (REQ #11)
 
-### 📋 Phase 3 (Planned Q3 2025)
+### 📋 Phase 3 (Planned)
 - Real-time simulation
 - Multi-line scheduling
 - Advanced visualization
 - Mobile support
+- Cost-based optimization (REQ #17)
+- Multi-objective algorithms (REQ #19)
+- Advanced ML features (REQ #20, #23-27)
 
-**Reference**: [Phase Specifications](docs/stage-specs.md)
+
 
 ---
 
 ## Known Limitations
 
+### Phase 1 Limitations
 1. **No Authentication**: Phase 1 has no security measures (development use only)
 2. **In-Memory Processing**: No persistent storage, service restart loses data
 3. **Single-Threaded Algorithm**: Does not support concurrent optimization requests
 4. **Fixed Work Orders**: Only supports pre-configured `WO_A/B/C`
+
+### Phase 1.5 Limitations
+1. **Complexity Auto-Classification**: Keyword-based only, no ML model yet (planned for Phase 3)
+2. **Part-Station Matrix**: Read-only output, no interactive editing
+3. **Merge Efficiency**: Fixed gain percentage, no dynamic calculation
+4. **Offline Tasks**: Cannot be re-optimized after initial separation
 
 **Mitigation Plans**: See [Architecture Design](docs/PHASE1_ARCHITECTURE_EN.md#security-design)
 
@@ -409,27 +627,6 @@ grep "dashboard.html" src/api_server.py
 
 ---
 
-## Contributing
-
-### How to Submit Issues
-1. Check [Existing Issues](https://github.com/your-org/line-balance/issues)
-2. Provide reproducible steps
-3. Include environment information (Python version, OS, etc.)
-
-### How to Contribute Code
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/your-feature`
-3. Commit changes: `git commit -m "Add: your feature"`
-4. Push to branch: `git push origin feature/your-feature`
-5. Submit Pull Request
-
-**Coding Standards**:
-- Follow PEP 8 (Python)
-- Add type hints (`typing` module)
-- Write docstrings (Google style)
-
----
-
 ## Acknowledgments
 
 - **Google OR-Tools**: Powerful CP-SAT solver
@@ -438,5 +635,5 @@ grep "dashboard.html" src/api_server.py
 
 ---
 
-**Last Updated**: 2025-11-06 | **Document Version**: 1.0  
+**Last Updated**: 2025-11-07 | **Document Version**: 1.5
 

@@ -1,6 +1,6 @@
 # Phase 1 API Specification
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-06  
+**Document Version**: 1.0 | **Last Updated**: 2025-11-07  
 **Related Documents**:
 - [Phase 1 Architecture](PHASE1_ARCHITECTURE_EN.md)
 - [Implementation Guide](PHASE1_IMPLEMENTATION_EN.md)
@@ -98,13 +98,43 @@ Submit optimization request and receive workstation allocation results.
 
 **Parameters**:
 
-| Field | Type | Required | Description | Default |
-|-------|------|----------|-------------|---------|
-| `work_order_id` | string | Yes | Work order ID (`WO_A`, `WO_B`, `WO_C`) | - |
-| `optimization_goal` | string | Yes | Optimization objective (`min_stations`, `min_manpower`, `min_idle`) | - |
-| `target_takt` | integer | Yes | Target takt time (milliseconds) | - |
-| `max_workers_per_station` | integer | No | Maximum workers per station | 3 |
-| `fixed_stations` | integer | No | Fixed number of stations (for `min_idle`) | 0 |
+| Field                     | Type    | Required | Description                                                         | Default | Phase |
+| ------------------------- | ------- | -------- | ------------------------------------------------------------------- | ------- | ----- |
+| `work_order_id`           | string  | Yes      | Work order ID (`WO_A`, `WO_B`, `WO_C`)                              | -       | 1     |
+| `optimization_goal`       | string  | Yes      | Optimization objective (`min_stations`, `min_manpower`, `min_idle`) | -       | 1     |
+| `target_takt`             | integer | Yes      | Target takt time (milliseconds)                                     | -       | 1     |
+| `max_workers_per_station` | integer | No       | Maximum workers per station                                         | 3       | 1     |
+| `fixed_stations`          | integer | No       | Fixed number of stations (for `min_idle`)                           | 0       | 1     |
+| `enable_offline_handling` | boolean | No       | Enable offline task separation (REQ #4, #15)                        | false   | 1.5   |
+| `enable_task_merging`     | boolean | No       | Enable adjustable task merging (REQ #13)                            | false   | 1.5   |
+| `merge_efficiency_gain`   | float   | No       | Efficiency gain from merging (0.0-0.5)                              | 0.10    | 1.5   |
+
+**Field Descriptions**:
+
+**Phase 1 Fields**:
+- `work_order_id`: Must exist in WORK_ORDER_MAPPING configuration
+- `optimization_goal`: Determines solver objective function
+- `target_takt`: Must be > 0, used for `min_manpower` and capacity constraints
+- `max_workers_per_station`: Limits workforce per station (≥ 1)
+- `fixed_stations`: Required for `min_idle` objective (≥ 1)
+
+**Phase 1.5 Fields (Extended)**:
+- `enable_offline_handling`: When true, tasks with `offline_flag=1` are:
+  - Excluded from line balancing optimization
+  - Assigned to separate offline stations (station_index = -1)
+  - Reported separately in KPIs (`offline_tasks_count`, `offline_total_time`)
+  - **Use case**: Pre-assembly, quality inspection, off-line testing
+  
+- `enable_task_merging`: When true, tasks with `adjustable=1` and same `action_type`:
+  - Can be merged to same station for efficiency
+  - Effective duration reduced by `merge_efficiency_gain` percentage
+  - Merge decisions optimized in solver
+  - **Use case**: Consolidate similar operations (multiple screw tasks)
+  
+- `merge_efficiency_gain`: Percentage time reduction for merged tasks
+  - Range: 0.0 (no gain) to 0.5 (50% max gain)
+  - Example: Two 10s tasks merged = 18s (10% gain) instead of 20s
+  - Validation: Must be in [0.0, 0.5]
 
 **Optimization Objectives**:
 
@@ -136,7 +166,15 @@ Submit optimization request and receive workstation allocation results.
       "idle_time_ms": 1500,
       "workers": 1,
       "utilization_pct": 95.0,
-      "assigned_tasks": [1, 2, 5]
+      "assigned_tasks": [1, 2, 5],
+      
+      // Phase 1.5 NEW fields (when enabled)
+      "online_tasks": [1, 5],
+      "offline_tasks": [2],
+      "adjustable_tasks": [1, 5],
+      "merged_task_pairs": [[1, 5]],
+      "online_load_ms": 25500,
+      "offline_load_ms": 3000
     },
     {
       "id": "WS-002",
@@ -144,7 +182,22 @@ Submit optimization request and receive workstation allocation results.
       "idle_time_ms": 200,
       "workers": 1,
       "utilization_pct": 99.33,
-      "assigned_tasks": [3, 4, 6]
+      "assigned_tasks": [3, 4, 6],
+      "online_tasks": [3, 4, 6],
+      "offline_tasks": [],
+      "adjustable_tasks": [3, 6],
+      "merged_task_pairs": [[3, 6]],
+      "online_load_ms": 29800,
+      "offline_load_ms": 0
+    },
+    {
+      "id": "OFFLINE-001",  // Phase 1.5 NEW: Offline station
+      "total_time_ms": 15000,
+      "workers": 0,
+      "assigned_tasks": [7, 8, 9],
+      "online_tasks": [],
+      "offline_tasks": [7, 8, 9],
+      "offline_load_ms": 15000
     }
   ],
   "takt_time_ms": 30000,
@@ -153,6 +206,13 @@ Submit optimization request and receive workstation allocation results.
   "line_count": 2,
   "utilization_avg": 97.17,
   "total_idle_time_ms": 1700,
+  
+  // Phase 1.5 NEW fields (when enabled)
+  "online_stations": 2,
+  "offline_tasks_count": 3,
+  "offline_total_time_ms": 15000,
+  "merged_tasks_count": 2,
+  "merge_efficiency_gain_pct": 10.5,
   "solve_time_sec": 0.85,
   "algorithm_used": "boolean"
 }
@@ -189,10 +249,10 @@ Retrieve workstation configuration summary.
 GET /workstations?work_order_id=WO_A&target_takt=30000
 ```
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `work_order_id` | string | Yes | Work order ID |
-| `target_takt` | integer | Yes | Target takt time (ms) |
+| Parameter       | Type    | Required | Description           |
+| --------------- | ------- | -------- | --------------------- |
+| `work_order_id` | string  | Yes      | Work order ID         |
+| `target_takt`   | integer | Yes      | Target takt time (ms) |
 
 **Response (200 OK)**:
 ```json
@@ -274,40 +334,82 @@ Check service health status.
 
 ```python
 class OptimizeRequest(BaseModel):
+    """Phase 1 + 1.5 Optimization Request"""
+    
+    # Phase 1 fields
     work_order_id: str                    # Work order ID
     optimization_goal: str                # Optimization objective
     target_takt: int                      # Target takt (ms)
     max_workers_per_station: int = 3      # Max workers per station
     fixed_stations: int = 0               # Fixed stations (for min_idle)
+    
+    # Phase 1.5 NEW fields
+    enable_offline_handling: bool = False  # Enable offline task separation
+    enable_task_merging: bool = False      # Enable adjustable task merging
+    merge_efficiency_gain: float = 0.10    # Merge efficiency (0.0-0.5)
+    
+    @validator('merge_efficiency_gain')
+    def validate_merge_gain(cls, v):
+        if not 0.0 <= v <= 0.5:
+            raise ValueError('merge_efficiency_gain must be in [0.0, 0.5]')
+        return v
+    
+    @validator('optimization_goal')
+    def validate_goal(cls, v):
+        valid_goals = ['min_stations', 'min_manpower', 'min_idle']
+        if v not in valid_goals:
+            raise ValueError(f'optimization_goal must be one of {valid_goals}')
+        return v
 ```
 
 ### StationInfo
 
 ```python
 class StationInfo(BaseModel):
-    id: str                    # Station ID (e.g., WS-001)
+    """Phase 1 + 1.5 Station Information"""
+    
+    # Phase 1 fields
+    id: str                    # Station ID (e.g., WS-001, OFFLINE-001)
     total_time_ms: int        # Total load time (ms)
     idle_time_ms: int         # Idle time relative to bottleneck (ms)
     workers: int              # Number of workers
     utilization_pct: float    # Utilization percentage
-    assigned_tasks: List[int] # Assigned task IDs
+    assigned_tasks: List[int] # All assigned task IDs
+    
+    # Phase 1.5 NEW fields
+    online_tasks: List[int] = []              # Online task IDs only
+    offline_tasks: List[int] = []             # Offline task IDs only
+    adjustable_tasks: List[int] = []          # Adjustable task IDs
+    merged_task_pairs: List[List[int]] = []   # Merged pairs e.g., [[1,3], [5,7]]
+    online_load_ms: int = 0                   # Load from online tasks
+    offline_load_ms: int = 0                  # Load from offline tasks
 ```
 
 ### OptimizeResponse
 
 ```python
 class OptimizeResponse(BaseModel):
+    """Phase 1 + 1.5 Optimization Response"""
+    
+    # Phase 1 fields
     work_order_id: str
     objectives: dict          # Optimization parameters
     stations: List[StationInfo]
     takt_time_ms: int        # Achieved takt
     bottleneck_station_id: str
-    manpower_total: int      # Total manpower
+    manpower_total: int      # Total manpower (online stations)
     line_count: int          # Number of stations
     utilization_avg: float   # Average utilization
     total_idle_time_ms: int  # Total idle time
     solve_time_sec: float    # Algorithm execution time
     algorithm_used: str      # Model used
+    
+    # Phase 1.5 NEW fields
+    online_stations: int = 0              # Number of online stations
+    offline_tasks_count: int = 0          # Total offline tasks
+    offline_total_time_ms: int = 0        # Total offline task time
+    merged_tasks_count: int = 0           # Number of merged task pairs
+    merge_efficiency_gain_pct: float = 0.0  # Actual efficiency gain achieved
 ```
 
 ### WorkstationSummary
@@ -346,12 +448,12 @@ class TaktSummary(BaseModel):
 
 ### HTTP Status Codes
 
-| Code | Meaning | Common Scenarios |
-|------|---------|------------------|
-| 200 | Success | Request processed successfully |
-| 400 | Bad Request | Invalid `work_order_id`, parameter type error |
-| 404 | Not Found | Dashboard file missing |
-| 500 | Internal Server Error | Algorithm timeout, execution failure |
+| Code | Meaning               | Common Scenarios                              |
+| ---- | --------------------- | --------------------------------------------- |
+| 200  | Success               | Request processed successfully                |
+| 400  | Bad Request           | Invalid `work_order_id`, parameter type error |
+| 404  | Not Found             | Dashboard file missing                        |
+| 500  | Internal Server Error | Algorithm timeout, execution failure          |
 
 ### Common Error Messages
 
@@ -534,11 +636,11 @@ ab -n 100 -c 10 -p request.json -T application/json \
 
 ### A. Work Order Mapping Table
 
-| `work_order_id` | `tasks_csv` | `precedences_csv` | `config_csv` |
-|-----------------|-------------|-------------------|--------------|
-| `WO_A` | `test_tasks.csv` | `test_precedences.csv` | `test_config.csv` |
-| `WO_B` | `test_tasks.csv` | `test_precedences.csv` | - |
-| `WO_C` | `test_tasks.csv` | - | `test_config.csv` |
+| `work_order_id` | `tasks_csv`      | `precedences_csv`      | `config_csv`      |
+| --------------- | ---------------- | ---------------------- | ----------------- |
+| `WO_A`          | `test_tasks.csv` | `test_precedences.csv` | `test_config.csv` |
+| `WO_B`          | `test_tasks.csv` | `test_precedences.csv` | -                 |
+| `WO_C`          | `test_tasks.csv` | -                      | `test_config.csv` |
 
 ### B. Algorithm Invocation Example
 
@@ -568,5 +670,3 @@ Features:
 - Schema validation
 
 ---
-
-**Document End** | For questions contact development team

@@ -1,4 +1,4 @@
-# Models & Strategies Explanation (English)
+# Models & Strategies Explanation
 
 ## 📚 Table of Contents
 - [Data Structures](#data-structures)
@@ -31,14 +31,14 @@ class SectionInfo:
 
 ## 🎯 Strategy Overview
 
-| Strategy Name | Algorithm | Objective Function | Uses OR-Tools? | Main Purpose |
-|--------------|-----------|-------------------|----------------|--------------|
-| **Greedy** | Greedy Heuristic | Fast Feasible Solution | ❌ | Initial Solution + Hint |
-| **Boolean Model** | CP-SAT (Boolean Variables) | Minimize Stations | ✅ | Station Count Optimization |
-| **Scheduling Model** | CP-SAT (Cumulative Constraint) | Minimize Last Station Index | ✅ | Station Count Optimization (Alternative) |
-| **Manpower Model** | CP-SAT (Integer Variables) | Minimize Total Workers | ✅ | Workforce Optimization |
-| **Idle Model** | CP-SAT (Load Balancing) | Minimize Bottleneck Load | ✅ | Load Balancing |
-| **Multi-Objective** | Two-Phase Optimization | Compound Objectives | ✅ | Multi-Goal Optimization |
+| Strategy Name        | Algorithm                      | Objective Function          | Uses OR-Tools? | Main Purpose                             |
+| -------------------- | ------------------------------ | --------------------------- | -------------- | ---------------------------------------- |
+| **Greedy**           | Greedy Heuristic               | Fast Feasible Solution      | ❌              | Initial Solution + Hint                  |
+| **Boolean Model**    | CP-SAT (Boolean Variables)     | Minimize Stations           | ✅              | Station Count Optimization               |
+| **Scheduling Model** | CP-SAT (Cumulative Constraint) | Minimize Last Station Index | ✅              | Station Count Optimization (Alternative) |
+| **Manpower Model**   | CP-SAT (Integer Variables)     | Minimize Total Workers      | ✅              | Workforce Optimization                   |
+| **Idle Model**       | CP-SAT (Load Balancing)        | Minimize Bottleneck Load    | ✅              | Load Balancing                           |
+| **Multi-Objective**  | Two-Phase Optimization         | Compound Objectives         | ✅              | Multi-Goal Optimization                  |
 
 ---
 
@@ -565,22 +565,385 @@ python or-line-balance.py \
 
 ### **Model Selection Guide**:
 
-| Requirement | Recommended Model | Parameters |
-|-------------|-------------------|------------|
-| Minimum stations | Boolean Model | `--objective min_stations --model boolean` |
-| Minimum workforce | Manpower Model | `--objective min_manpower --target_takt N` |
-| Load balancing | Idle Model | `--objective min_idle` |
-| Compound objectives | Multi-Objective | `--multi_objective stations_then_idle` |
-| Quick testing | Greedy | `--model greedy` |
+| Requirement         | Recommended Model | Parameters                                 |
+| ------------------- | ----------------- | ------------------------------------------ |
+| Minimum stations    | Boolean Model     | `--objective min_stations --model boolean` |
+| Minimum workforce   | Manpower Model    | `--objective min_manpower --target_takt N` |
+| Load balancing      | Idle Model        | `--objective min_idle`                     |
+| Compound objectives | Multi-Objective   | `--multi_objective stations_then_idle`     |
+| Quick testing       | Greedy            | `--model greedy`                           |
 
 ### **Solving Time Comparison** (Empirical values):
 
-| Model | 12 Tasks | 50 Tasks | 100 Tasks |
-|-------|----------|----------|-----------|
-| Greedy | < 0.1s | < 0.5s | < 1s |
-| Boolean | 1-5s | 10-60s | 60-300s |
-| Scheduling | 1-3s | 5-30s | 30-180s |
-| Manpower | 2-10s | 20-120s | 120-600s |
-| Idle | 1-5s | 10-60s | 60-300s |
+| Model      | 12 Tasks | 50 Tasks | 100 Tasks |
+| ---------- | -------- | -------- | --------- |
+| Greedy     | < 0.1s   | < 0.5s   | < 1s      |
+| Boolean    | 1-5s     | 10-60s   | 60-300s   |
+| Scheduling | 1-3s     | 5-30s    | 30-180s   |
+| Manpower   | 2-10s    | 20-120s  | 120-600s  |
+| Idle       | 1-5s     | 10-60s   | 60-300s   |
 
 **Note**: Actual time depends on problem complexity (number of precedence relations, cycle_time tightness, etc.).
+
+---
+
+## 🔧 Phase 1.5 Extended Models
+
+Phase 1.5 introduces support for REQ #4, #13, and #15 to handle offline tasks and adjustable task optimization.
+
+---
+
+### 6️⃣ **Offline-Aware Model**
+
+#### **Purpose**
+Separate online and offline tasks during optimization to accurately model production line workstation allocation.
+
+#### **Application Scenario**
+- **REQ #4**: Simulate workstation configuration with offline processing distinction
+- **REQ #15**: Mark and handle offline tasks (quality inspection, pre-assembly)
+- **Use case**: When tasks have different processing locations (on-line vs. off-line)
+
+#### **Input Extensions**
+
+**tasks.csv** must include `offline_flag` column:
+```csv
+task_id,duration,offline_flag,predecessors
+1,5,0,
+2,3,1,1
+3,4,0,1
+```
+
+#### **Algorithm Modifications**
+
+**1. Task Filtering**:
+```python
+def filter_offline_tasks(tasks, offline_flags):
+    """Separate online and offline tasks"""
+    online_tasks = [t for t in tasks if offline_flags.get(t, 0) == 0]
+    offline_tasks = [t for t in tasks if offline_flags.get(t, 0) == 1]
+    return online_tasks, offline_tasks
+```
+
+**2. Precedence Constraint Handling**:
+```python
+# Only apply precedence constraints for online-to-online relationships
+for (before, after) in precedences:
+    if before in online_tasks and after in online_tasks:
+        # Standard precedence constraint
+        for p in range(num_stations):
+            model.Add(
+                station[after] >= station[before]
+            ).OnlyEnforceIf(assign[before, p], assign[after, p])
+    elif before in offline_tasks and after in online_tasks:
+        # Offline-to-online: assume offline task always completed first
+        pass
+    elif before in online_tasks and after in offline_tasks:
+        # Online-to-offline: offline task scheduled after optimization
+        pass
+```
+
+**3. Capacity Constraint (Online Tasks Only)**:
+```python
+for p in range(num_stations):
+    model.Add(
+        sum(assign[t, p] * duration[t] for t in online_tasks) <= cycle_time
+    )
+```
+
+**4. Offline Task Post-Processing**:
+```python
+def assign_offline_tasks(offline_tasks, durations):
+    """Assign offline tasks to dedicated offline stations"""
+    offline_assignment = {}
+    for t in offline_tasks:
+        offline_assignment[t] = -1  # Special marker for offline
+    return offline_assignment
+```
+
+#### **Extended KPI Calculation**
+
+```python
+def compute_kpis_with_offline(assignment, durations, offline_tasks):
+    """Compute KPIs with offline task metrics"""
+    
+    # Standard KPIs for online tasks
+    online_assignment = {t: s for t, s in assignment.items() if t not in offline_tasks}
+    online_kpis = compute_kpis(online_assignment, durations, ...)
+    
+    # Offline metrics
+    offline_total_time = sum(durations[t] for t in offline_tasks)
+    offline_count = len(offline_tasks)
+    
+    return {
+        **online_kpis,
+        "online_stations": online_kpis["total_stations"],
+        "offline_tasks_count": offline_count,
+        "offline_total_time": offline_total_time,
+        "mixed_operation_mode": True
+    }
+```
+
+#### **Output Format**
+
+**station.csv (Extended)**:
+```csv
+station_index,total_load,online_tasks,offline_tasks,online_load,offline_load,workers
+0,8,"1,3","2",5,3,2
+-1,12,"","4,5,6",0,12,0
+```
+- Station index `-1` represents offline station(s)
+- `online_load` + `offline_load` = `total_load`
+
+#### **Usage Example**
+
+```bash
+python sche-algo.py \
+  --tasks_csv data/tasks_with_offline.csv \
+  --objective min_stations \
+  --enable_offline_handling \
+  --station_csv output/stations_offline.csv \
+  --kpi_csv output/kpi_offline.csv
+```
+
+**Expected Output (kpi.csv)**:
+```csv
+metric,value,unit
+total_stations,3,stations
+online_stations,2,stations
+offline_tasks_count,3,tasks
+offline_total_time,12,time_units
+mixed_operation_mode,True,
+```
+
+---
+
+### 7️⃣ **Adjustable Task Model**
+
+#### **Purpose**
+Enable flexible task merging and splitting for tasks marked as adjustable to improve load balancing.
+
+#### **Application Scenario**
+- **REQ #13**: Leverage action unit adjustability for optimization
+- **Use case**: Tasks of the same type (e.g., multiple screw operations) can be merged
+- **Benefit**: Reduce idle time and improve station utilization
+
+#### **Input Extensions**
+
+**tasks.csv** must include `adjustable` and `action_type` columns:
+```csv
+task_id,duration,adjustable,action_type,predecessors
+1,5,1,"screw",
+2,3,0,"glue",1
+3,4,1,"screw",1
+4,2,1,"screw","2,3"
+```
+
+#### **Algorithm Modifications**
+
+**1. Identify Merge Candidates**:
+```python
+def find_merge_candidates(tasks, adjustable_flags, action_types):
+    """Find tasks that can be merged"""
+    adjustable_tasks = [t for t in tasks if adjustable_flags.get(t, 0) == 1]
+    
+    # Group by action_type
+    merge_groups = {}
+    for t in adjustable_tasks:
+        action = action_types.get(t, "unknown")
+        if action not in merge_groups:
+            merge_groups[action] = []
+        merge_groups[action].append(t)
+    
+    return merge_groups
+```
+
+**2. Create Merge Decision Variables**:
+```python
+# For each pair of consecutive adjustable tasks with same action_type
+merge_vars = {}
+for action, task_list in merge_groups.items():
+    for i in range(len(task_list) - 1):
+        t1, t2 = task_list[i], task_list[i+1]
+        merge_vars[(t1, t2)] = model.NewBoolVar(f'merge_{t1}_{t2}')
+```
+
+**3. Merging Constraints**:
+```python
+# If merged, both tasks must be at same station
+for (t1, t2), merge_var in merge_vars.items():
+    for p in range(num_stations):
+        model.Add(
+            assign[t1, p] == assign[t2, p]
+        ).OnlyEnforceIf(merge_var)
+```
+
+**4. Effective Duration Adjustment**:
+```python
+# Merged tasks gain efficiency (e.g., 10% reduction)
+effective_duration = {}
+for t in tasks:
+    effective_duration[t] = model.NewIntVar(0, duration[t], f'eff_dur_{t}')
+
+for (t1, t2), merge_var in merge_vars.items():
+    # If merged: effective duration = 90% of sum
+    merged_duration = int((duration[t1] + duration[t2]) * 0.9)
+    model.Add(effective_duration[t1] == merged_duration).OnlyEnforceIf(merge_var)
+    
+    # If not merged: use original duration
+    model.Add(effective_duration[t1] == duration[t1]).OnlyEnforceIf(merge_var.Not())
+```
+
+**5. Capacity Constraint with Effective Duration**:
+```python
+for p in range(num_stations):
+    model.Add(
+        sum(assign[t, p] * effective_duration[t] for t in tasks) <= cycle_time
+    )
+```
+
+#### **Objective Function Enhancement**
+
+```python
+# Primary objective: minimize stations
+# Secondary objective: maximize merges (reduce complexity)
+num_stations_var = model.NewIntVar(0, len(tasks), 'num_stations')
+merge_count = sum(merge_vars.values())
+
+# Two-phase optimization
+model.Minimize(num_stations_var * 1000 - merge_count)
+```
+
+#### **Extended KPI Calculation**
+
+```python
+def compute_kpis_with_merging(assignment, merge_vars, durations):
+    """Compute KPIs including merge efficiency"""
+    
+    # Count merged pairs
+    merged_pairs = [(t1, t2) for (t1, t2), var in merge_vars.items() if var.solution_value() == 1]
+    merge_count = len(merged_pairs)
+    
+    # Calculate efficiency gain
+    original_time = sum(durations[t1] + durations[t2] for t1, t2 in merged_pairs)
+    merged_time = sum((durations[t1] + durations[t2]) * 0.9 for t1, t2 in merged_pairs)
+    efficiency_gain = (original_time - merged_time) / original_time * 100 if original_time > 0 else 0
+    
+    return {
+        **standard_kpis,
+        "adjustable_tasks_count": len([t for t in tasks if adjustable[t] == 1]),
+        "merged_tasks_count": merge_count,
+        "merge_efficiency_gain": round(efficiency_gain, 2)
+    }
+```
+
+#### **Output Format**
+
+**station.csv (Extended)**:
+```csv
+station_index,total_load,adjustable_tasks,merged_task_pairs,workers
+0,7,"1,3","1-3",1
+1,5,"4,5","4-5",1
+2,6,"7","",1
+```
+
+#### **Usage Example**
+
+```bash
+python sche-algo.py \
+  --tasks_csv data/tasks_with_adjustable.csv \
+  --objective min_stations \
+  --enable_task_merging \
+  --merge_efficiency_gain 0.10 \
+  --station_csv output/stations_merged.csv
+```
+
+**Expected Output (kpi.csv)**:
+```csv
+metric,value,unit
+total_stations,3,stations
+adjustable_tasks_count,8,tasks
+merged_tasks_count,3,pairs
+merge_efficiency_gain,10.5,percent
+```
+
+---
+
+### 8️⃣ **Combined Model (Offline + Adjustable)**
+
+#### **Purpose**
+Combine offline task handling and adjustable task merging for comprehensive optimization.
+
+#### **Algorithm Workflow**
+
+```
+1. Read CSV with all extended columns
+   ├── offline_flag
+   ├── adjustable
+   └── action_type
+
+2. Filter Tasks
+   ├── Online + Adjustable → Candidates for merging
+   ├── Online + Fixed → Normal assignment
+   └── Offline → Post-processing
+
+3. Optimize Online Tasks
+   ├── Apply merging constraints for adjustable tasks
+   ├── Minimize stations
+   └── Maximize merge efficiency
+
+4. Assign Offline Tasks
+   └── Dedicated offline stations
+
+5. Compute Extended KPIs
+   ├── Online/offline metrics
+   ├── Merge metrics
+   └── Combined efficiency
+```
+
+#### **Usage Example**
+
+```bash
+python sche-algo.py \
+  --tasks_csv data/tasks_full_extended.csv \
+  --objective min_stations \
+  --enable_offline_handling \
+  --enable_task_merging \
+  --station_csv output/stations_full.csv \
+  --kpi_csv output/kpi_full.csv
+```
+
+**Input CSV (Full Extended)**:
+```csv
+task_id,duration,offline_flag,adjustable,action_type,predecessors
+1,5,0,1,"screw",
+2,3,1,0,"glue",1
+3,4,0,1,"screw",1
+4,2,0,0,"test","2,3"
+5,6,1,1,"clip",4
+6,3,0,1,"screw","4"
+```
+
+**Expected Output**:
+```csv
+station_index,total_load,online_tasks,offline_tasks,adjustable_tasks,merged_task_pairs,online_load,offline_load
+0,7,"1,3","","1,3","1-3",7,0
+1,5,"4,6","","6","",5,0
+-1,9,"","2,5","5","",0,9
+```
+
+---
+
+## 📊 Updated Model Selection Guide
+
+| Requirement                 | Recommended Model         | Parameters                                        | Phase   |
+| --------------------------- | ------------------------- | ------------------------------------------------- | ------- |
+| Minimum stations            | Boolean Model             | `--objective min_stations --model boolean`        | 1       |
+| Minimum workforce           | Manpower Model            | `--objective min_manpower --target_takt N`        | 1       |
+| Load balancing              | Idle Model                | `--objective min_idle`                            | 1       |
+| **Offline task handling**   | **Offline-Aware Model**   | `--enable_offline_handling`                       | **1.5** |
+| **Adjustable task merging** | **Adjustable Task Model** | `--enable_task_merging`                           | **1.5** |
+| **Combined optimization**   | **Combined Model**        | `--enable_offline_handling --enable_task_merging` | **1.5** |
+| Compound objectives         | Multi-Objective           | `--multi_objective stations_then_idle`            | 1       |
+| Quick testing               | Greedy                    | `--model greedy`                                  | 1       |
+
+

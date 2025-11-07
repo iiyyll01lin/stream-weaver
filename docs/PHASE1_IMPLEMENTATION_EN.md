@@ -73,35 +73,35 @@ This document explains the implementation architecture, deployment steps, and ve
 
 ### Frontend Technologies
 
-| Technology    | Version | Purpose              | Rationale                    |
-|---------------|---------|----------------------|------------------------------|
-| HTML5         | -       | Page structure       | Standard, lightweight, no build |
-| Tailwind CSS  | 3.x     | UI styling           | Rapid development, modern design |
-| Chart.js      | 4.x     | Data visualization   | Easy to use, comprehensive docs |
-| Vanilla JS    | ES6+    | Interactive logic    | No framework needed, reduced complexity |
+| Technology   | Version | Purpose            | Rationale                               |
+| ------------ | ------- | ------------------ | --------------------------------------- |
+| HTML5        | -       | Page structure     | Standard, lightweight, no build         |
+| Tailwind CSS | 3.x     | UI styling         | Rapid development, modern design        |
+| Chart.js     | 4.x     | Data visualization | Easy to use, comprehensive docs         |
+| Vanilla JS   | ES6+    | Interactive logic  | No framework needed, reduced complexity |
 
 ### Backend Technologies
 
-| Technology    | Version | Purpose              | Rationale                    |
-|---------------|---------|----------------------|------------------------------|
-| Python        | 3.10+   | Main language        | Rich ecosystem, OR-Tools support |
-| FastAPI       | 0.104+  | Web framework        | High performance, auto docs, type safety |
-| Uvicorn       | 0.24+   | ASGI server          | Asynchronous, high performance |
-| Pydantic      | 2.0+    | Data validation      | Strong typing, automatic validation |
+| Technology | Version | Purpose         | Rationale                                |
+| ---------- | ------- | --------------- | ---------------------------------------- |
+| Python     | 3.10+   | Main language   | Rich ecosystem, OR-Tools support         |
+| FastAPI    | 0.104+  | Web framework   | High performance, auto docs, type safety |
+| Uvicorn    | 0.24+   | ASGI server     | Asynchronous, high performance           |
+| Pydantic   | 2.0+    | Data validation | Strong typing, automatic validation      |
 
 ### Algorithm Technologies
 
-| Technology    | Version | Purpose              | Rationale                    |
-|---------------|---------|----------------------|------------------------------|
-| OR-Tools      | 9.7+    | CP-SAT solver        | Google official, mature and stable |
-| absl-py       | 2.0+    | Command-line args    | Good integration with OR-Tools |
+| Technology | Version | Purpose           | Rationale                          |
+| ---------- | ------- | ----------------- | ---------------------------------- |
+| OR-Tools   | 9.7+    | CP-SAT solver     | Google official, mature and stable |
+| absl-py    | 2.0+    | Command-line args | Good integration with OR-Tools     |
 
 ### Deployment Technologies (Optional)
 
-| Technology    | Version | Purpose              | Rationale                    |
-|---------------|---------|----------------------|------------------------------|
-| Docker        | 24+     | Containerization     | Environment consistency, easy deployment |
-| Docker Compose| 2.x     | Multi-container orchestration | Simplified local dev environment |
+| Technology     | Version | Purpose                       | Rationale                                |
+| -------------- | ------- | ----------------------------- | ---------------------------------------- |
+| Docker         | 24+     | Containerization              | Environment consistency, easy deployment |
+| Docker Compose | 2.x     | Multi-container orchestration | Simplified local dev environment         |
 
 ---
 
@@ -411,9 +411,568 @@ docker stop line-balance
 
 ---
 
+## Phase 1.5 Extended Implementation Guide
+
+Phase 1.5 adds support for offline task handling (REQ #4, #15) and adjustable task merging (REQ #13).
+
+### Feature 1: Offline Task Handling
+
+#### **Objective**
+Separate online and offline tasks to accurately model production line workstation allocation and off-line operations.
+
+#### **Implementation Steps**
+
+**Step 1: Update CSV Schema**
+
+Create extended tasks CSV file with `offline_flag` column:
+
+```csv
+task_id,duration,offline_flag,predecessors
+1,5000,0,
+2,3000,1,1
+3,4000,0,1
+4,2000,0,"2,3"
+5,6000,1,4
+```
+
+Save as `data/tasks_with_offline.csv`
+
+**Step 2: Modify Algorithm (`sche-algo.py`)**
+
+Add offline task filtering logic:
+
+```python
+def read_problem_from_csv_extended(tasks_file, precedences_file, config_file):
+    """Read CSV with extended offline_flag column"""
+    problem = read_problem_from_csv(tasks_file, precedences_file, config_file)
+    
+    # Read offline_flag column
+    df = pd.read_csv(tasks_file)
+    offline_tasks = []
+    
+    for idx, row in df.iterrows():
+        if 'offline_flag' in row and int(row.get('offline_flag', 0)) == 1:
+            offline_tasks.append(int(row['task_id']))
+    
+    # Store offline tasks in problem dict
+    problem["offline_tasks"] = SectionInfo()
+    problem["offline_tasks"].value = offline_tasks
+    
+    return problem
+
+def filter_online_tasks(problem):
+    """Separate online and offline tasks"""
+    all_tasks = list(problem["tasks"].index_map.keys())
+    offline_tasks = problem.get("offline_tasks", SectionInfo()).value or []
+    online_tasks = [t for t in all_tasks if t not in offline_tasks]
+    
+    return online_tasks, offline_tasks
+
+def solve_with_offline_handling(problem, hint=None):
+    """Solve optimization with offline task handling"""
+    online_tasks, offline_tasks = filter_online_tasks(problem)
+    
+    # Create filtered problem with online tasks only
+    problem_online = {
+        "tasks": SectionInfo(),
+        "precedences": problem["precedences"],
+        "cycle_time": problem["cycle_time"],
+        "num_workers_limit": problem["num_workers_limit"]
+    }
+    
+    # Copy only online tasks
+    problem_online["tasks"].index_map = {
+        t: problem["tasks"].index_map[t] 
+        for t in online_tasks
+    }
+    
+    # Solve for online tasks
+    assignment = solve_problem_with_boolean_model(problem_online, hint)
+    
+    # Assign offline tasks to special station (-1)
+    for t in offline_tasks:
+        assignment[t] = -1
+    
+    return assignment, online_tasks, offline_tasks
+```
+
+**Step 3: Update KPI Calculation**
+
+```python
+def compute_kpis_with_offline(assignment, durations, online_tasks, offline_tasks):
+    """Compute KPIs with offline metrics"""
+    
+    # Filter online assignments
+    online_assignment = {t: s for t, s in assignment.items() if t in online_tasks}
+    
+    # Compute standard KPIs for online tasks
+    online_kpis = compute_kpis(online_assignment, durations, ...)
+    
+    # Compute offline metrics
+    offline_total_time = sum(durations.get(t, 0) for t in offline_tasks)
+    offline_count = len(offline_tasks)
+    
+    # Merge results
+    extended_kpis = {
+        **online_kpis,
+        "online_stations": online_kpis["total_stations"],
+        "offline_tasks_count": offline_count,
+        "offline_total_time": offline_total_time,
+        "mixed_operation_mode": True
+    }
+    
+    return extended_kpis
+```
+
+**Step 4: Update API Server (`api_server.py`)**
+
+Add support for offline handling parameter:
+
+```python
+class OptimizeRequest(BaseModel):
+    work_order_id: str
+    optimization_goal: str
+    target_takt: int
+    max_workers_per_station: int = 3
+    fixed_stations: int = 0
+    
+    # Phase 1.5 NEW
+    enable_offline_handling: bool = False
+
+@app.post("/optimize")
+async def optimize(request: OptimizeRequest):
+    # ... existing code ...
+    
+    # Add offline handling flag to command
+    cmd = [
+        "python3", algo_script,
+        "--tasks_csv", tasks_csv,
+        "--objective", request.optimization_goal,
+        "--json_output", json_output
+    ]
+    
+    if request.enable_offline_handling:
+        cmd.extend(["--enable_offline_handling"])
+    
+    # ... rest of code ...
+```
+
+**Step 5: Test**
+
+```bash
+# Test with offline handling
+python3 src/sche-algo.py \
+  --tasks_csv data/tasks_with_offline.csv \
+  --precedences_csv data/test_precedences.csv \
+  --objective min_stations \
+  --enable_offline_handling \
+  --json_output output/result_offline.json
+
+# Verify output
+cat output/result_offline.json
+```
+
+**Expected Output:**
+```json
+{
+  "kpis": {
+    "total_stations": 2,
+    "online_stations": 1,
+    "offline_tasks_count": 2,
+    "offline_total_time": 9000
+  },
+  "assignment": {
+    "1": 0,
+    "2": -1,
+    "3": 0,
+    "4": 1,
+    "5": -1
+  }
+}
+```
+
+---
+
+### Feature 2: Adjustable Task Merging
+
+#### **Objective**
+Enable flexible task merging for tasks marked as adjustable to improve load balancing and reduce idle time.
+
+#### **Implementation Steps**
+
+**Step 1: Update CSV Schema**
+
+Create extended tasks CSV with `adjustable` and `action_type` columns:
+
+```csv
+task_id,duration,adjustable,action_type,predecessors
+1,5000,1,"screw",
+2,3000,0,"glue",1
+3,4000,1,"screw",1
+4,2000,1,"screw","2,3"
+5,6000,0,"test",4
+```
+
+Save as `data/tasks_with_adjustable.csv`
+
+**Step 2: Modify Algorithm**
+
+Add task merging logic:
+
+```python
+def find_merge_candidates(problem):
+    """Identify tasks that can be merged"""
+    df = pd.read_csv(tasks_file)
+    
+    # Group by action_type
+    adjustable = df[df['adjustable'] == 1]
+    merge_groups = adjustable.groupby('action_type')['task_id'].apply(list).to_dict()
+    
+    # Create merge pairs (consecutive tasks of same type)
+    merge_candidates = []
+    for action_type, task_list in merge_groups.items():
+        for i in range(len(task_list) - 1):
+            merge_candidates.append((task_list[i], task_list[i+1]))
+    
+    return merge_candidates
+
+def solve_with_task_merging(problem, merge_efficiency=0.10):
+    """Solve with task merging enabled"""
+    model = cp_model.CpModel()
+    
+    # ... standard variables ...
+    
+    # Create merge decision variables
+    merge_candidates = find_merge_candidates(problem)
+    merge_vars = {}
+    for (t1, t2) in merge_candidates:
+        merge_vars[(t1, t2)] = model.NewBoolVar(f'merge_{t1}_{t2}')
+    
+    # Effective duration variables
+    durations = problem["tasks"].index_map
+    effective_duration = {}
+    
+    for t in tasks:
+        max_dur = max(durations.values())
+        effective_duration[t] = model.NewIntVar(0, max_dur * 2, f'eff_dur_{t}')
+    
+    # Merge constraints
+    for (t1, t2), merge_var in merge_vars.items():
+        # If merged, both at same station
+        for p in range(num_stations):
+            model.Add(
+                assign[t1, p] == assign[t2, p]
+            ).OnlyEnforceIf(merge_var)
+        
+        # Effective duration when merged (with efficiency gain)
+        merged_dur = int((durations[t1] + durations[t2]) * (1 - merge_efficiency))
+        model.Add(
+            effective_duration[t1] + effective_duration[t2] == merged_dur
+        ).OnlyEnforceIf(merge_var)
+        
+        # Original duration when not merged
+        model.Add(
+            effective_duration[t1] == durations[t1]
+        ).OnlyEnforceIf(merge_var.Not())
+        model.Add(
+            effective_duration[t2] == durations[t2]
+        ).OnlyEnforceIf(merge_var.Not())
+    
+    # Update capacity constraints to use effective duration
+    for p in range(num_stations):
+        model.Add(
+            sum(assign[t, p] * effective_duration[t] for t in tasks) 
+            <= cycle_time
+        )
+    
+    # Objective: minimize stations, maximize merges
+    merge_count = sum(merge_vars.values())
+    model.Minimize(num_stations_var * 1000 - merge_count)
+    
+    # ... solve and return ...
+```
+
+**Step 3: Test**
+
+```bash
+python3 src/sche-algo.py \
+  --tasks_csv data/tasks_with_adjustable.csv \
+  --objective min_stations \
+  --enable_task_merging \
+  --merge_efficiency_gain 0.10 \
+  --json_output output/result_merged.json
+```
+
+**Expected Output:**
+```json
+{
+  "kpis": {
+    "total_stations": 2,
+    "adjustable_tasks_count": 3,
+    "merged_tasks_count": 1,
+    "merge_efficiency_gain": 10.0
+  },
+  "assignment": {
+    "1": 0,
+    "2": 1,
+    "3": 0,
+    "4": 0
+  },
+  "merged_pairs": [[1, 3]]
+}
+```
+
+---
+
+### Combined Feature Test
+
+Test both offline handling and task merging together:
+
+```bash
+python3 src/sche-algo.py \
+  --tasks_csv data/tasks_full_extended.csv \
+  --objective min_stations \
+  --enable_offline_handling \
+  --enable_task_merging \
+  --merge_efficiency_gain 0.10 \
+  --json_output output/result_full.json
+```
+
+**Input CSV (Full Extended):**
+```csv
+task_id,duration,offline_flag,adjustable,action_type,predecessors
+1,5000,0,1,"screw",
+2,3000,1,0,"glue",1
+3,4000,0,1,"screw",1
+4,2000,0,0,"test","2,3"
+5,6000,1,1,"clip",4
+6,3000,0,1,"screw",4
+```
+
+---
+
+### Verification Checklist
+
+Phase 1.5 feature verification:
+
+- [ ] **Offline Task Handling**
+  - [ ] Tasks with `offline_flag=1` excluded from optimization
+  - [ ] Offline tasks assigned to station index `-1`
+  - [ ] KPIs include `offline_tasks_count` and `offline_total_time`
+  - [ ] Precedence constraints handle online-offline relationships
+
+- [ ] **Task Merging**
+  - [ ] Adjustable tasks with same `action_type` can merge
+  - [ ] Merged tasks assigned to same station
+  - [ ] Effective duration calculated with efficiency gain
+  - [ ] KPIs include `merged_tasks_count` and `merge_efficiency_gain`
+
+- [ ] **API Integration**
+  - [ ] `enable_offline_handling` parameter works
+  - [ ] `enable_task_merging` parameter works
+  - [ ] Extended StationInfo fields populated correctly
+  - [ ] Response includes Phase 1.5 KPIs
+
+- [ ] **Performance**
+  - [ ] Solving time < 5 seconds for 50 tasks with extensions
+  - [ ] Memory usage acceptable (< 500MB)
+
+- [ ] **Extended Features (REQ #10, #12)**
+  - [ ] `complexity_level` column parsed correctly
+  - [ ] `part_id` column links actions to parts
+  - [ ] Complexity classification impacts optimization (if enabled)
+  - [ ] Part-level reporting available in output
+
+---
+
+## Phase 1.5 Extended Features Implementation
+
+### Feature 3: Assembly Complexity Classification (REQ #10)
+
+**Purpose:** Auto-classify tasks by complexity level for better resource allocation
+
+**Implementation Steps:**
+
+1. **Update CSV Schema**
+   ```csv
+   task_id,duration,action_type,complexity_level,part_id,predecessors
+   1,5000,"mount","simple","FAN_BRACKET",
+   2,8000,"install","complex","GPU_GTX3080",1
+   3,3000,"screw","simple","SCREW_M3",2
+   ```
+
+2. **Add Complexity Lookup Table**
+   ```python
+   # In sche-algo.py or new module
+   COMPLEXITY_RULES = {
+       "simple": ["screw", "clip", "bracket"],
+       "medium": ["mount", "cable", "thermal"],
+       "complex": ["gpu", "hdd", "raid"],
+       "super_complex": ["custom", "cto", "special"]
+   }
+   
+   def auto_classify_complexity(part_id: str, action_type: str) -> str:
+       """Auto-classify based on part keywords"""
+       part_lower = part_id.lower()
+       
+       # Check part-based rules
+       for complexity, keywords in COMPLEXITY_RULES.items():
+           if any(kw in part_lower for kw in keywords):
+               return complexity
+       
+       # Fallback to action-based
+       if action_type in ["screw", "clip"]:
+           return "simple"
+       elif action_type in ["glue", "mount"]:
+           return "medium"
+       else:
+           return "complex"
+   ```
+
+3. **Integrate into Optimization**
+   ```python
+   def read_problem_with_complexity(csv_path):
+       df = pd.read_csv(csv_path)
+       
+       # Auto-fill missing complexity
+       if 'complexity_level' not in df.columns:
+           df['complexity_level'] = df.apply(
+               lambda row: auto_classify_complexity(
+                   row.get('part_id', ''),
+                   row.get('action_type', '')
+               ),
+               axis=1
+           )
+       
+       # Adjust durations based on complexity (optional)
+       complexity_multipliers = {
+           "simple": 1.0,
+           "medium": 1.2,
+           "complex": 1.5,
+           "super_complex": 2.0
+       }
+       
+       df['adjusted_duration'] = df.apply(
+           lambda row: int(row['duration'] * 
+                         complexity_multipliers.get(row['complexity_level'], 1.0)),
+           axis=1
+       )
+       
+       return df
+   ```
+
+4. **Add Complexity-Aware KPIs**
+   ```python
+   def compute_complexity_kpis(solution, task_data):
+       complexity_distribution = task_data.groupby('complexity_level').agg({
+           'task_id': 'count',
+           'duration': 'sum'
+       }).to_dict()
+       
+       return {
+           "complexity_distribution": complexity_distribution,
+           "avg_complexity_per_station": calculate_station_complexity(solution),
+           "high_complexity_stations": identify_bottleneck_stations(solution)
+       }
+   ```
+
+**Output Example:**
+```json
+{
+  "complexity_distribution": {
+    "simple": {"count": 8, "total_time": 12000},
+    "medium": {"count": 5, "total_time": 18000},
+    "complex": {"count": 3, "total_time": 24000}
+  }
+}
+```
+
+---
+
+### Feature 4: Part-Action Mapping (REQ #12)
+
+**Purpose:** Link action units to physical parts for BOM integration
+
+**Implementation Steps:**
+
+1. **Update Data Model**
+   ```python
+   @dataclass
+   class TaskWithPart:
+       task_id: int
+       duration: int
+       action_type: str
+       part_id: Optional[str] = None  # New field
+       part_quantity: int = 1         # New field
+       offline_flag: int = 0
+       adjustable: int = 1
+       predecessors: List[int] = field(default_factory=list)
+   ```
+
+2. **Add Part-Level Grouping**
+   ```python
+   def group_tasks_by_part(tasks: List[TaskWithPart]) -> Dict[str, List[int]]:
+       """Group task IDs by part_id"""
+       part_map = defaultdict(list)
+       
+       for task in tasks:
+           if task.part_id:
+               part_map[task.part_id].append(task.task_id)
+       
+       return dict(part_map)
+   ```
+
+3. **Generate Part-Station Matrix**
+   ```python
+   def generate_part_station_matrix(solution, tasks):
+       """Create matrix showing which parts are worked on at each station"""
+       part_station = defaultdict(set)
+       
+       for station_id, task_ids in solution.items():
+           for task_id in task_ids:
+               task = tasks[task_id]
+               if task.part_id:
+                   part_station[task.part_id].add(station_id)
+       
+       return {
+           part: sorted(stations) 
+           for part, stations in part_station.items()
+       }
+   ```
+
+4. **Add to Station Output**
+   ```python
+   # Extended station.csv format
+   station_index,assigned_tasks,parts_involved,part_operations
+   0,"1,2,3","GPU_GTX3080,FAN_BRACKET","GPU_GTX3080:install,FAN_BRACKET:mount+screw"
+   1,"4,5","HDD_2TB,CABLE_SATA","HDD_2TB:install,CABLE_SATA:route"
+   ```
+
+**API Response Extension:**
+```json
+{
+  "stations": [
+    {
+      "station_index": 0,
+      "assigned_tasks": [1, 2, 3],
+      "parts_involved": [
+        {"part_id": "GPU_GTX3080", "actions": ["install", "test"]},
+        {"part_id": "FAN_BRACKET", "actions": ["mount", "screw"]}
+      ]
+    }
+  ],
+  "part_flow_summary": {
+    "GPU_GTX3080": [0, 1],  // Stations where this part is worked on
+    "HDD_2TB": [1, 2]
+  }
+}
+```
+
+---
+
 ## Next Steps (Phase 2 Preview)
 
-After Phase 1 completion, the next phase will include:
+After Phase 1.5 completion, the next phase will include:
 
 - ✅ Multi-line configuration (requirements 5, 6)
 - ✅ 2D Layout drag-and-drop (requirements 18, 20, 21)
@@ -434,5 +993,6 @@ See `docs/stage-specs.md` Phase 2 specifications for details.
 ---
 
 **Document Maintainer:** JASON YY, LIN  
-**Last Updated:** 2025-11-06  
-**Version:** 1.0.0-phase1
+**Last Updated:** 2025-11-07  
+**Version:** 1.1.0-phase1.5
+
