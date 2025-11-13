@@ -1,6 +1,6 @@
 # Phase 1 API Specification
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-07  
+**Document Version**: 1.0 | **Last Updated**: 2025-11-06  
 **Related Documents**:
 - [Phase 1 Architecture](PHASE1_ARCHITECTURE_EN.md)
 - [Implementation Guide](PHASE1_IMPLEMENTATION_EN.md)
@@ -99,7 +99,7 @@ Submit optimization request and receive workstation allocation results.
 **Parameters**:
 
 | Field                     | Type    | Required | Description                                                         | Default | Phase |
-| ------------------------- | ------- | -------- | ------------------------------------------------------------------- | ------- | ----- |
+|---------------------------|---------|----------|---------------------------------------------------------------------|---------|-------|
 | `work_order_id`           | string  | Yes      | Work order ID (`WO_A`, `WO_B`, `WO_C`)                              | -       | 1     |
 | `optimization_goal`       | string  | Yes      | Optimization objective (`min_stations`, `min_manpower`, `min_idle`) | -       | 1     |
 | `target_takt`             | integer | Yes      | Target takt time (milliseconds)                                     | -       | 1     |
@@ -250,7 +250,7 @@ GET /workstations?work_order_id=WO_A&target_takt=30000
 ```
 
 | Parameter       | Type    | Required | Description           |
-| --------------- | ------- | -------- | --------------------- |
+|-----------------|---------|----------|-----------------------|
 | `work_order_id` | string  | Yes      | Work order ID         |
 | `target_takt`   | integer | Yes      | Target takt time (ms) |
 
@@ -449,7 +449,7 @@ class TaktSummary(BaseModel):
 ### HTTP Status Codes
 
 | Code | Meaning               | Common Scenarios                              |
-| ---- | --------------------- | --------------------------------------------- |
+|------|-----------------------|-----------------------------------------------|
 | 200  | Success               | Request processed successfully                |
 | 400  | Bad Request           | Invalid `work_order_id`, parameter type error |
 | 404  | Not Found             | Dashboard file missing                        |
@@ -637,7 +637,7 @@ ab -n 100 -c 10 -p request.json -T application/json \
 ### A. Work Order Mapping Table
 
 | `work_order_id` | `tasks_csv`      | `precedences_csv`      | `config_csv`      |
-| --------------- | ---------------- | ---------------------- | ----------------- |
+|-----------------|------------------|------------------------|-------------------|
 | `WO_A`          | `test_tasks.csv` | `test_precedences.csv` | `test_config.csv` |
 | `WO_B`          | `test_tasks.csv` | `test_precedences.csv` | -                 |
 | `WO_C`          | `test_tasks.csv` | -                      | `test_config.csv` |
@@ -670,3 +670,7 @@ Features:
 - Schema validation
 
 ---
+
+**Document Maintainer:** JASON YY, LIN  
+**Last Updated:** 2025-11-06 
+**Version:** 1.5.0-phase1

@@ -1,6 +1,6 @@
 # Phase 1 Architecture Design
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-07  
+**Document Version**: 1.0 | **Last Updated**: 2025-11-06  
 **Related Documents**:
 - [Implementation Guide](PHASE1_IMPLEMENTATION_EN.md)
 - [API Specification](PHASE1_API_SPEC_EN.md)
@@ -122,7 +122,7 @@ Phase 1 adopts a **three-tier architecture** to achieve separation of concerns a
 **Technology Choices**:
 
 | Technology         | Purpose            | Reason for Selection                        |
-| ------------------ | ------------------ | ------------------------------------------- |
+|--------------------|--------------------|---------------------------------------------|
 | Tailwind CSS       | UI Styling         | Rapid prototyping, minimal custom CSS       |
 | Chart.js           | Data Visualization | Lightweight, supports Gantt-like bar charts |
 | Vanilla JavaScript | Interaction Logic  | No framework dependency, low complexity     |
@@ -253,7 +253,7 @@ def parse_algorithm_output(
 **Error Handling Strategy**:
 
 | Exception Type              | HTTP Status | Handling Method                         |
-| --------------------------- | ----------- | --------------------------------------- |
+|-----------------------------|-------------|-----------------------------------------|
 | `ValueError`                | 400         | Invalid parameter, return error message |
 | `subprocess.TimeoutExpired` | 500         | Algorithm timeout                       |
 | `FileNotFoundError`         | 500         | CSV file not found                      |
@@ -322,7 +322,7 @@ for j in range(num_stations):
 ### Full Stack Overview
 
 | Layer              | Component          | Technology         | Version        |
-| ------------------ | ------------------ | ------------------ | -------------- |
+|--------------------|--------------------|--------------------|----------------|
 | **Frontend**       | UI Framework       | Tailwind CSS       | 3.x (CDN)      |
 |                    | Charting Library   | Chart.js           | 4.x (CDN)      |
 |                    | HTTP Client        | Fetch API          | Native Browser |
@@ -883,7 +883,7 @@ CMD ["python3", "src/api_server.py"]
 **Known Risks**:
 
 | Risk                    | Severity | Mitigation Plan (Future)             |
-| ----------------------- | -------- | ------------------------------------ |
+|-------------------------|----------|--------------------------------------|
 | Unrestricted API Access | High     | Implement JWT authentication         |
 | CSV Injection           | Medium   | Add file content validation          |
 | DoS via Large Requests  | Medium   | Add rate limiting (e.g., 10 req/min) |
@@ -986,7 +986,7 @@ solver.parameters.search_branching = cp_model.FIXED_SEARCH
 ### A. API Endpoint Mapping Table
 
 | Endpoint        | Method | Purpose                   | Phase |
-| --------------- | ------ | ------------------------- | ----- |
+|-----------------|--------|---------------------------|-------|
 | `/`             | GET    | Serve frontend HTML       | 1     |
 | `/optimize`     | POST   | Core optimization         | 1     |
 | `/workstations` | GET    | Query workstation summary | 1     |
@@ -997,7 +997,7 @@ solver.parameters.search_branching = cp_model.FIXED_SEARCH
 ### B. Environment Variables
 
 | Variable         | Default                          | Description            |
-| ---------------- | -------------------------------- | ---------------------- |
+|------------------|----------------------------------|------------------------|
 | `WORKSPACE_ROOT` | `/workspace`                     | Project root directory |
 | `DATA_DIR`       | `${WORKSPACE_ROOT}/data`         | CSV file storage       |
 | `ALGO_SCRIPT`    | `${WORKSPACE_ROOT}/sche-algo.py` | Algorithm script path  |
@@ -1008,3 +1008,9 @@ solver.parameters.search_branching = cp_model.FIXED_SEARCH
 [2025-01-14 10:30:45] INFO - [API] Executing command: python3 sche-algo.py --tasks_csv ...
 [2025-01-14 10:30:46] INFO - [API] Algorithm completed, time: 0.85 seconds
 ```
+
+---
+
+**Document Maintainer:** JASON YY, LIN  
+**Last Updated:** 2025-11-06
+**Version:** 1.5.0-phase1

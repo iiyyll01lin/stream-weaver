@@ -74,7 +74,7 @@ This document explains the implementation architecture, deployment steps, and ve
 ### Frontend Technologies
 
 | Technology   | Version | Purpose            | Rationale                               |
-| ------------ | ------- | ------------------ | --------------------------------------- |
+|--------------|---------|--------------------|-----------------------------------------|
 | HTML5        | -       | Page structure     | Standard, lightweight, no build         |
 | Tailwind CSS | 3.x     | UI styling         | Rapid development, modern design        |
 | Chart.js     | 4.x     | Data visualization | Easy to use, comprehensive docs         |
@@ -83,7 +83,7 @@ This document explains the implementation architecture, deployment steps, and ve
 ### Backend Technologies
 
 | Technology | Version | Purpose         | Rationale                                |
-| ---------- | ------- | --------------- | ---------------------------------------- |
+|------------|---------|-----------------|------------------------------------------|
 | Python     | 3.10+   | Main language   | Rich ecosystem, OR-Tools support         |
 | FastAPI    | 0.104+  | Web framework   | High performance, auto docs, type safety |
 | Uvicorn    | 0.24+   | ASGI server     | Asynchronous, high performance           |
@@ -92,14 +92,14 @@ This document explains the implementation architecture, deployment steps, and ve
 ### Algorithm Technologies
 
 | Technology | Version | Purpose           | Rationale                          |
-| ---------- | ------- | ----------------- | ---------------------------------- |
+|------------|---------|-------------------|------------------------------------|
 | OR-Tools   | 9.7+    | CP-SAT solver     | Google official, mature and stable |
 | absl-py    | 2.0+    | Command-line args | Good integration with OR-Tools     |
 
 ### Deployment Technologies (Optional)
 
 | Technology     | Version | Purpose                       | Rationale                                |
-| -------------- | ------- | ----------------------------- | ---------------------------------------- |
+|----------------|---------|-------------------------------|------------------------------------------|
 | Docker         | 24+     | Containerization              | Environment consistency, easy deployment |
 | Docker Compose | 2.x     | Multi-container orchestration | Simplified local dev environment         |
 
