@@ -408,6 +408,240 @@ GET /sensor-data/worker/worker_001?from=2025-11-01&to=2025-11-12&limit=50
 
 ---
 
+#### 3.4 `POST /motion/compare-efficiency` (NEW)
+
+Compare worker motion efficiency against expert baseline.
+
+**Request Body**:
+```json
+{
+  "novice_upload_id": "upload_abc123",
+  "expert_baseline_id": "expert_001_baseline",
+  "task_type": "DL360_assembly",
+  "generate_report": true
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "comparison_id": "comp_xyz789",
+  "novice_worker_id": "worker_005",
+  "expert_baseline_id": "expert_001_baseline",
+  "task_type": "DL360_assembly",
+  "timestamp": "2025-11-12T10:30:00Z",
+  "efficiency_score": 62,
+  "expert_cycle_time_sec": 45.2,
+  "novice_cycle_time_sec": 63.5,
+  "time_difference_sec": 18.3,
+  "productivity_gap_percent": 40.5,
+  "gaps": [
+    {
+      "metric": "hand_coordination_ratio",
+      "expert": 0.78,
+      "novice": 0.23,
+      "gap": 0.55,
+      "time_loss_sec": 8.5,
+      "priority": "high",
+      "recommendation": "Practice using both hands simultaneously during assembly tasks"
+    },
+    {
+      "metric": "motion_smoothness",
+      "expert": 0.85,
+      "novice": 0.52,
+      "gap": 0.33,
+      "time_loss_sec": 5.2,
+      "priority": "high",
+      "recommendation": "Focus on smooth, controlled movements. Avoid jerky motions"
+    },
+    {
+      "metric": "path_efficiency",
+      "expert": 0.72,
+      "novice": 0.48,
+      "gap": 0.24,
+      "time_loss_sec": 4.6,
+      "priority": "medium",
+      "recommendation": "Take more direct paths to parts. Minimize detours"
+    }
+  ],
+  "training_priority": [
+    "hand_coordination_ratio",
+    "motion_smoothness", 
+    "path_efficiency"
+  ],
+  "efficiency_features": {
+    "expert": {
+      "hand_coordination_ratio": 0.78,
+      "motion_smoothness": 0.85,
+      "path_efficiency": 0.72,
+      "unnecessary_reaches": 1,
+      "trunk_angle_stability": 0.91,
+      "arm_extension_ratio": 0.65,
+      "avg_reba_score": 2.8
+    },
+    "novice": {
+      "hand_coordination_ratio": 0.23,
+      "motion_smoothness": 0.52,
+      "path_efficiency": 0.48,
+      "unnecessary_reaches": 7,
+      "trunk_angle_stability": 0.67,
+      "arm_extension_ratio": 0.82,
+      "avg_reba_score": 4.5
+    }
+  },
+  "report_url": "/reports/efficiency_comp_xyz789.pdf",
+  "radar_chart_url": "data:image/png;base64,iVBORw0KGgo...",
+  "timeline_chart_url": "data:image/png;base64,iVBORw0KGgo..."
+}
+```
+
+**Error Responses**:
+- `404 Not Found`: Upload ID or baseline not found
+- `400 Bad Request`: Task type mismatch between uploads
+- `500 Internal Server Error`: Processing error
+
+---
+
+#### 3.5 `GET /motion/expert-baselines`
+
+List available expert baselines for comparison.
+
+**Query Parameters**:
+```
+GET /motion/expert-baselines?task_type=DL360_assembly&min_score=75
+```
+
+| Parameter    | Type    | Required | Description                     |
+|--------------|---------|----------|---------------------------------|
+| `task_type`  | string  | No       | Filter by task type             |
+| `min_score`  | integer | No       | Minimum efficiency score (0-100)|
+
+**Response (200 OK)**:
+```json
+{
+  "baselines": [
+    {
+      "baseline_id": "expert_001_baseline",
+      "expert_worker_id": "worker_099",
+      "task_type": "DL360_assembly",
+      "efficiency_score": 95,
+      "cycle_time_sec": 45.2,
+      "recording_date": "2025-10-15",
+      "samples_count": 50,
+      "features": {
+        "hand_coordination_ratio": 0.78,
+        "motion_smoothness": 0.85,
+        "path_efficiency": 0.72,
+        "avg_reba_score": 2.8
+      }
+    }
+  ],
+  "total_count": 1
+}
+```
+
+---
+
+#### 3.6 `POST /motion/create-expert-baseline`
+
+Create new expert baseline from high-performing worker.
+
+**Request Body**:
+```json
+{
+  "worker_id": "worker_099",
+  "upload_ids": [
+    "upload_xyz001",
+    "upload_xyz002",
+    "upload_xyz003"
+  ],
+  "task_type": "DL360_assembly",
+  "baseline_name": "Expert DL360 Assembly - Jason Lin"
+}
+```
+
+**Response (201 Created)**:
+```json
+{
+  "baseline_id": "expert_001_baseline",
+  "worker_id": "worker_099",
+  "task_type": "DL360_assembly",
+  "baseline_name": "Expert DL360 Assembly - Jason Lin",
+  "samples_analyzed": 3,
+  "avg_efficiency_score": 95,
+  "avg_cycle_time_sec": 45.2,
+  "created_at": "2025-11-12T11:00:00Z",
+  "features": {
+    "hand_coordination_ratio": 0.78,
+    "motion_smoothness": 0.85,
+    "path_efficiency": 0.72,
+    "unnecessary_reaches": 1,
+    "trunk_angle_stability": 0.91,
+    "arm_extension_ratio": 0.65,
+    "avg_reba_score": 2.8
+  }
+}
+```
+
+---
+
+#### 3.7 `GET /motion/efficiency-report/{comparison_id}`
+
+Retrieve detailed efficiency comparison report.
+
+**Path Parameters**:
+- `comparison_id` (string): Comparison ID from POST /motion/compare-efficiency
+
+**Response (200 OK)**:
+```json
+{
+  "comparison_id": "comp_xyz789",
+  "generated_at": "2025-11-12T10:35:00Z",
+  "report_type": "efficiency_comparison",
+  "summary": {
+    "novice_worker": "worker_005",
+    "expert_baseline": "expert_001_baseline",
+    "efficiency_score": 62,
+    "productivity_gap_percent": 40.5,
+    "estimated_improvement_potential": "15% efficiency gain possible with targeted training"
+  },
+  "detailed_analysis": {
+    "top_3_improvements": [
+      {
+        "area": "Hand Coordination",
+        "current_score": 0.23,
+        "target_score": 0.78,
+        "time_saving_potential_sec": 8.5,
+        "training_exercises": [
+          "Practice parallel hand movements with dummy parts",
+          "Watch expert video focusing on simultaneous actions",
+          "Start with simple 2-hand tasks, progress to complex"
+        ]
+      }
+    ],
+    "strength_areas": [
+      {
+        "area": "Trunk Stability",
+        "score": 0.67,
+        "note": "Good posture maintenance, minimal rework needed"
+      }
+    ]
+  },
+  "visualizations": {
+    "radar_chart": "data:image/png;base64,...",
+    "timeline_comparison": "data:image/png;base64,...",
+    "improvement_roadmap": "data:image/png;base64,..."
+  },
+  "export_formats": {
+    "pdf_url": "/reports/efficiency_comp_xyz789.pdf",
+    "csv_url": "/reports/efficiency_comp_xyz789.csv",
+    "json_url": "/reports/efficiency_comp_xyz789.json"
+  }
+}
+```
+
+---
+
 ### 4. Version Management
 
 #### 4.1 `GET /versions`

@@ -74,9 +74,22 @@ The **Line Balance System** is an intelligent production line optimization tool 
 🎥 **Body Sensor Data Processing**
 - **Motion Capture Analysis**: Upload MP4/AVI videos for automatic pose detection
 - **MediaPipe Integration**: 33-point body landmark tracking
-- **REBA Ergonomic Scoring**: Automatic posture risk assessment (1-15 scale)
+- **Dual-Purpose Analysis**:
+  - **REBA Ergonomic Scoring**: Posture risk assessment (1-15 scale) for safety compliance
+  - **Motion Efficiency Analysis** (NEW): Expert vs. Novice comparison for productivity optimization
+- **7 Efficiency Metrics** (NEW):
+  - Hand coordination ratio (parallel vs. sequential work)
+  - Motion smoothness (velocity jerk analysis)
+  - Path efficiency (trajectory optimization)
+  - Unnecessary reach detection
+  - Trunk angle stability
+  - Arm extension ratio
+  - Ergonomic safety score (REBA)
+- **Expert Baseline Management** (NEW): Store and compare against top performer patterns
 - **Action Classification**: Auto-identify Install/Mount/Screw/Test motions
 - **Time Study Generation**: Convert sensor data to standard work times
+- **Training Recommendations** (NEW): Personalized improvement suggestions based on gap analysis
+- **Visual Reports** (NEW): Radar charts and timeline comparisons
 
 🏗️ **3D Simulation & Visualization**
 - **NVIDIA Omniverse**: Photorealistic 3D production line simulation

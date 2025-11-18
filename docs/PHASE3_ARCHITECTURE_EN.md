@@ -116,8 +116,19 @@ Phase 3 extends the architecture with advanced AI/ML and 3D capabilities:
 │  │  Sensor Data Processor (PyTorch + MediaPipe)                  │  │
 │  │  - Pose Estimation: 33-point body landmark detection         │  │
 │  │  - Motion Classification: Install/Mount/Screw/Test           │  │
+│  │  - Motion Efficiency Analysis: Expert vs. Novice comparison  │  │
+│  │    * Hand coordination ratio (parallel vs. sequential work)  │  │
+│  │    * Motion smoothness (velocity jerk analysis)              │  │
+│  │    * Path efficiency (trajectory optimization)               │  │
+│  │    * Unnecessary reach detection (wasted movements)          │  │
+│  │    * Trunk angle stability (balance assessment)              │  │
+│  │    * Arm extension ratio (reach optimization)                │  │
+│  │    * Overall efficiency score (0-100%)                       │  │
+│  │  - Expert Baseline Management: Store reference patterns      │  │
+│  │  - Efficiency Gap Analysis: Identify improvement areas       │  │
+│  │  - Training Recommendations: Personalized improvement tips   │  │
 │  │  - Time Study: Automated task duration measurement           │  │
-│  │  - Ergonomic Analysis: REBA score calculation                │  │
+│  │  - Ergonomic Analysis: REBA score (safety) + efficiency      │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                          │
@@ -1039,22 +1050,36 @@ Motion Capture Video/Stream
 │ - Reach / Position       │
 └───────────┬──────────────┘
             │
-            ▼
-┌──────────────────────────┐
-│ Ergonomic Analysis       │
-│ - REBA score (1-15)      │
-│ - Fatigue prediction     │
-│ - Injury risk            │
-└───────────┬──────────────┘
-            │
-            ▼
-┌──────────────────────────┐
-│ Time Study Generation    │
-│ - Task durations         │
-│ - Efficiency metrics     │
-│ - CSV export             │
-└──────────────────────────┘
+            ├─────────────────────────────────────┐
+            │                                     │
+            ▼                                     ▼
+┌──────────────────────────┐         ┌──────────────────────────┐
+│ Ergonomic Analysis       │         │ Motion Efficiency        │
+│ (Safety Assessment)      │         │ (Productivity Analysis)  │
+│ - REBA score (1-15)      │         │ - Expert vs Novice       │
+│ - Fatigue prediction     │         │ - Efficiency score (0-100)│
+│ - Injury risk            │         │ - Gap identification     │
+└───────────┬──────────────┘         │ - Training suggestions   │
+            │                         └───────────┬──────────────┘
+            │                                     │
+            └─────────────────┬───────────────────┘
+                              │
+                              ▼
+                  ┌──────────────────────────┐
+                  │ Time Study Generation    │
+                  │ - Task durations         │
+                  │ - Efficiency metrics     │
+                  │ - Improvement potential  │
+                  │ - CSV export             │
+                  └──────────────────────────┘
 ```
+
+### Dual-Purpose Analysis System
+
+Phase 3 body sensor processing serves two critical functions:
+
+1. **Safety Assessment (REBA)**: Identify ergonomic risks and prevent injuries
+2. **Productivity Optimization (Motion Efficiency)**: Compare workers to expert baseline and accelerate training
 
 ### REBA Score Calculation
 
@@ -1090,6 +1115,385 @@ def calculate_reba_score(landmarks: Dict) -> int:
     
     return reba_score + activity_score
 ```
+
+### Motion Efficiency Analysis (NEW)
+
+```python
+class MotionEfficiencyAnalyzer:
+    """
+    Analyzes worker motion efficiency by comparing to expert baseline.
+    Identifies improvement opportunities for faster onboarding and productivity gains.
+    """
+    
+    def extract_efficiency_features(self, pose_sequence: List[Dict]) -> Dict[str, float]:
+        """
+        Extract 7 key efficiency metrics from pose sequence
+        
+        Returns:
+            {
+                "hand_coordination_ratio": 0.78,      # 0-1, higher = more parallel work
+                "motion_smoothness": 0.85,             # 0-1, lower jerk = smoother
+                "path_efficiency": 0.72,               # 0-1, straighter paths = better
+                "unnecessary_reaches": 3,              # count of wasted movements
+                "trunk_angle_stability": 0.91,         # 0-1, less swaying = better
+                "arm_extension_ratio": 0.65,           # 0-1, optimal reach distance
+                "avg_reba_score": 4.2                  # 1-15, lower = safer posture
+            }
+        """
+        left_hand = [p["point_15"] for p in pose_sequence]   # Left wrist
+        right_hand = [p["point_16"] for p in pose_sequence]  # Right wrist
+        
+        # 1. Hand Coordination Ratio
+        hand_coord_ratio = self._calculate_hand_coordination(left_hand, right_hand)
+        
+        # 2. Motion Smoothness (inverse of jerk)
+        smoothness = self._calculate_smoothness(left_hand, right_hand)
+        
+        # 3. Path Efficiency
+        path_eff = self._calculate_path_efficiency(left_hand, right_hand)
+        
+        # 4. Unnecessary Reaches
+        wasted_moves = self._detect_unnecessary_reaches(pose_sequence)
+        
+        # 5. Trunk Stability
+        trunk_stability = self._calculate_trunk_stability(pose_sequence)
+        
+        # 6. Arm Extension Ratio
+        arm_extension = self._calculate_arm_extension_ratio(pose_sequence)
+        
+        # 7. Average REBA Score
+        avg_reba = np.mean([calculate_reba_score(p) for p in pose_sequence])
+        
+        return {
+            "hand_coordination_ratio": hand_coord_ratio,
+            "motion_smoothness": smoothness,
+            "path_efficiency": path_eff,
+            "unnecessary_reaches": wasted_moves,
+            "trunk_angle_stability": trunk_stability,
+            "arm_extension_ratio": arm_extension,
+            "avg_reba_score": avg_reba
+        }
+    
+    def _calculate_hand_coordination(self, left_hand: List, right_hand: List) -> float:
+        """
+        Measure parallel work vs sequential work.
+        Expert workers use both hands simultaneously more often.
+        """
+        # Calculate velocity magnitude for each hand
+        left_velocity = np.diff([np.linalg.norm(p[:3]) for p in left_hand])
+        right_velocity = np.diff([np.linalg.norm(p[:3]) for p in right_hand])
+        
+        # Count frames where both hands are moving (velocity > threshold)
+        threshold = 0.01
+        both_moving = np.sum((left_velocity > threshold) & (right_velocity > threshold))
+        total_frames = len(left_velocity)
+        
+        return both_moving / total_frames  # Higher = more parallel work
+    
+    def _calculate_smoothness(self, left_hand: List, right_hand: List) -> float:
+        """
+        Measure motion smoothness using jerk (3rd derivative of position).
+        Expert workers have smoother, less jerky movements.
+        """
+        def calculate_jerk(trajectory: List) -> float:
+            positions = np.array([p[:3] for p in trajectory])
+            velocity = np.diff(positions, axis=0)
+            acceleration = np.diff(velocity, axis=0)
+            jerk = np.diff(acceleration, axis=0)
+            return np.mean(np.linalg.norm(jerk, axis=1))
+        
+        left_jerk = calculate_jerk(left_hand)
+        right_jerk = calculate_jerk(right_hand)
+        avg_jerk = (left_jerk + right_jerk) / 2
+        
+        # Normalize to 0-1 (lower jerk = higher smoothness)
+        max_jerk = 0.05  # Empirically determined threshold
+        return max(0, 1 - (avg_jerk / max_jerk))
+    
+    def _calculate_path_efficiency(self, left_hand: List, right_hand: List) -> float:
+        """
+        Compare actual path length to straight-line distance.
+        Expert workers take more direct paths.
+        """
+        def path_efficiency(trajectory: List) -> float:
+            positions = np.array([p[:3] for p in trajectory])
+            # Actual path length
+            actual_distance = np.sum(np.linalg.norm(np.diff(positions, axis=0), axis=1))
+            # Straight-line distance
+            straight_distance = np.linalg.norm(positions[-1] - positions[0])
+            return straight_distance / actual_distance if actual_distance > 0 else 0
+        
+        left_eff = path_efficiency(left_hand)
+        right_eff = path_efficiency(right_hand)
+        return (left_eff + right_eff) / 2
+
+    def _detect_unnecessary_reaches(self, pose_sequence: List[Dict]) -> int:
+        """
+        Detect movements that return to same position without accomplishing work.
+        Expert workers minimize these wasted motions.
+        """
+        wrist_positions = np.array([
+            [p["point_15"][:3], p["point_16"][:3]] for p in pose_sequence
+        ])
+        
+        unnecessary_count = 0
+        position_threshold = 0.05  # 5cm threshold
+        
+        for i in range(2, len(wrist_positions) - 1):
+            # Check if hand returns to previous position
+            prev_pos = wrist_positions[i-2]
+            curr_pos = wrist_positions[i]
+            dist = np.linalg.norm(curr_pos - prev_pos, axis=1)
+            
+            if np.any(dist < position_threshold):
+                unnecessary_count += 1
+        
+        return unnecessary_count
+
+    def _calculate_trunk_stability(self, pose_sequence: List[Dict]) -> float:
+        """
+        Measure trunk angle variation. Expert workers maintain stable posture.
+        """
+        trunk_angles = []
+        for pose in pose_sequence:
+            hip = np.array(pose["point_23"][:3])    # Left hip
+            shoulder = np.array(pose["point_11"][:3])  # Left shoulder
+            trunk_vector = shoulder - hip
+            # Calculate angle from vertical (z-axis)
+            vertical = np.array([0, 0, 1])
+            angle = np.arccos(np.dot(trunk_vector, vertical) / 
+                            (np.linalg.norm(trunk_vector) * np.linalg.norm(vertical)))
+            trunk_angles.append(np.degrees(angle))
+        
+        # Lower standard deviation = more stable
+        stability = 1.0 / (1.0 + np.std(trunk_angles))
+        return min(1.0, stability)
+
+    def _calculate_arm_extension_ratio(self, pose_sequence: List[Dict]) -> float:
+        """
+        Measure arm extension distance relative to optimal reach zone.
+        Expert workers stay in comfortable reach zone (40-60% of max reach).
+        """
+        arm_extensions = []
+        for pose in pose_sequence:
+            shoulder = np.array(pose["point_11"][:3])
+            elbow = np.array(pose["point_13"][:3])
+            wrist = np.array(pose["point_15"][:3])
+            
+            # Calculate arm extension percentage
+            upper_arm_len = np.linalg.norm(elbow - shoulder)
+            forearm_len = np.linalg.norm(wrist - elbow)
+            full_reach = np.linalg.norm(wrist - shoulder)
+            max_reach = upper_arm_len + forearm_len
+            
+            extension_ratio = full_reach / max_reach if max_reach > 0 else 0
+            arm_extensions.append(extension_ratio)
+        
+        # Optimal range: 0.4-0.6 (40-60% extension)
+        avg_extension = np.mean(arm_extensions)
+        if 0.4 <= avg_extension <= 0.6:
+            return 1.0
+        elif avg_extension < 0.4:
+            return avg_extension / 0.4
+        else:
+            return 1.0 - (avg_extension - 0.6) / 0.4
+
+
+class ExpertNoviceComparator:
+    """
+    Compare novice worker performance against expert baseline.
+    Generate actionable training recommendations.
+    """
+    
+    def compare_workers(
+        self, 
+        expert_features: Dict[str, float],
+        novice_features: Dict[str, float]
+    ) -> Dict:
+        """
+        Compare feature differences and estimate productivity gap.
+        
+        Returns:
+            {
+                "efficiency_score": 62,  # 0-100 scale
+                "gaps": [
+                    {
+                        "metric": "hand_coordination_ratio",
+                        "expert": 0.78,
+                        "novice": 0.23,
+                        "gap": 0.55,
+                        "time_loss_sec": 8.5,
+                        "recommendation": "Practice using both hands simultaneously"
+                    },
+                    ...
+                ],
+                "estimated_cycle_time_increase": 18.3,  # seconds slower than expert
+                "training_priority": ["hand_coordination", "motion_smoothness", "path_efficiency"]
+            }
+        """
+        gaps = []
+        total_time_loss = 0
+        
+        # Compare each metric
+        for metric, expert_value in expert_features.items():
+            novice_value = novice_features.get(metric, 0)
+            gap = abs(expert_value - novice_value)
+            
+            # Estimate time impact (empirically calibrated)
+            time_impact = self._estimate_time_impact(metric, gap)
+            total_time_loss += time_impact
+            
+            if gap > 0.1 or (metric == "unnecessary_reaches" and gap > 2):
+                gaps.append({
+                    "metric": metric,
+                    "expert": round(expert_value, 2),
+                    "novice": round(novice_value, 2),
+                    "gap": round(gap, 2),
+                    "time_loss_sec": round(time_impact, 1),
+                    "recommendation": self._generate_recommendation(metric, gap)
+                })
+        
+        # Sort by time impact (highest priority first)
+        gaps.sort(key=lambda x: x["time_loss_sec"], reverse=True)
+        
+        # Calculate overall efficiency score (0-100)
+        efficiency_score = max(0, 100 - (total_time_loss / 30 * 100))  # 30sec = 0% efficiency
+        
+        return {
+            "efficiency_score": int(efficiency_score),
+            "gaps": gaps[:5],  # Top 5 gaps
+            "estimated_cycle_time_increase": round(total_time_loss, 1),
+            "training_priority": [g["metric"] for g in gaps[:3]]
+        }
+    
+    def _estimate_time_impact(self, metric: str, gap: float) -> float:
+        """Estimate time loss in seconds based on metric gap"""
+        impact_factors = {
+            "hand_coordination_ratio": 15.0,    # 15 sec per 1.0 gap
+            "motion_smoothness": 8.0,
+            "path_efficiency": 12.0,
+            "unnecessary_reaches": 2.0,         # 2 sec per extra reach
+            "trunk_angle_stability": 3.0,
+            "arm_extension_ratio": 5.0,
+            "avg_reba_score": 1.5
+        }
+        return gap * impact_factors.get(metric, 5.0)
+    
+    def _generate_recommendation(self, metric: str, gap: float) -> str:
+        """Generate training recommendation based on gap"""
+        recommendations = {
+            "hand_coordination_ratio": "Practice using both hands simultaneously during assembly tasks",
+            "motion_smoothness": "Focus on smooth, controlled movements. Avoid jerky motions",
+            "path_efficiency": "Take more direct paths to parts. Minimize detours",
+            "unnecessary_reaches": "Plan movements in advance. Minimize returns to same position",
+            "trunk_angle_stability": "Maintain stable posture. Avoid excessive leaning or swaying",
+            "arm_extension_ratio": "Work within comfortable reach zone (40-60% arm extension)",
+            "avg_reba_score": "Improve ergonomics: keep back straight, elbows at 90 degrees"
+        }
+        return recommendations.get(metric, "Review expert video for best practices")
+
+
+class EfficiencyReportGenerator:
+    """Generate visual reports comparing expert vs novice performance"""
+    
+    def generate_radar_chart(
+        self, 
+        expert_features: Dict[str, float],
+        novice_features: Dict[str, float]
+    ) -> str:
+        """
+        Create radar chart comparing 5 key metrics.
+        Returns: base64-encoded PNG image
+        """
+        import matplotlib.pyplot as plt
+        from math import pi
+        
+        # Select top 5 metrics for visualization
+        metrics = [
+            "hand_coordination_ratio",
+            "motion_smoothness", 
+            "path_efficiency",
+            "trunk_angle_stability",
+            "arm_extension_ratio"
+        ]
+        
+        expert_values = [expert_features[m] for m in metrics]
+        novice_values = [novice_features[m] for m in metrics]
+        
+        # Create radar chart
+        angles = [n / len(metrics) * 2 * pi for n in range(len(metrics))]
+        expert_values += expert_values[:1]
+        novice_values += novice_values[:1]
+        angles += angles[:1]
+        
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+        ax.plot(angles, expert_values, 'o-', linewidth=2, label='Expert', color='green')
+        ax.fill(angles, expert_values, alpha=0.25, color='green')
+        ax.plot(angles, novice_values, 'o-', linewidth=2, label='Novice', color='red')
+        ax.fill(angles, novice_values, alpha=0.25, color='red')
+        
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels([m.replace('_', ' ').title() for m in metrics])
+        ax.set_ylim(0, 1)
+        ax.legend(loc='upper right')
+        ax.set_title("Motion Efficiency Comparison", size=16, y=1.08)
+        
+        # Convert to base64
+        import io, base64
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+        plt.close()
+        
+        return f"data:image/png;base64,{img_base64}"
+    
+    def generate_timeline_comparison(
+        self,
+        expert_reba_timeline: List[int],
+        novice_reba_timeline: List[int]
+    ) -> str:
+        """
+        Create timeline chart showing REBA scores over time.
+        Returns: base64-encoded PNG image
+        """
+        import matplotlib.pyplot as plt
+        
+        fig, ax = plt.subplots(figsize=(12, 5))
+        
+        frames = range(len(expert_reba_timeline))
+        ax.plot(frames, expert_reba_timeline, label='Expert', color='green', linewidth=2)
+        ax.plot(frames, novice_reba_timeline, label='Novice', color='red', linewidth=2)
+        
+        # Add risk zones
+        ax.axhspan(0, 3, alpha=0.1, color='green', label='Low Risk')
+        ax.axhspan(3, 7, alpha=0.1, color='yellow', label='Medium Risk')
+        ax.axhspan(7, 15, alpha=0.1, color='red', label='High Risk')
+        
+        ax.set_xlabel('Frame Number', fontsize=12)
+        ax.set_ylabel('REBA Score', fontsize=12)
+        ax.set_title('Ergonomic Risk Timeline Comparison', fontsize=14)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Convert to base64
+        import io, base64
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+        plt.close()
+        
+        return f"data:image/png;base64,{img_base64}"
+```
+
+### Value
+
+| Metric                          |
+|---------------------------------|
+| Worker Efficiency Improvement   | 
+| Training Time Reduction         | 
+| REBA Score Calculation Accuracy | 
 
 ---
 
