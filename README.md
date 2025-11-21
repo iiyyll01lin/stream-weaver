@@ -1,6 +1,6 @@
 # Stream Weaver Line Balance System - Phase 3
 
-**Project Version**: 3.0.0-phase3 | **Last Updated**: 2025-11-13  
+**Project Version**: 3.0.0-phase3 | **Last Updated**: 2025-11-21
 
 ---
 
@@ -55,7 +55,7 @@ The **Line Balance System** is an intelligent production line optimization tool 
 - SQLAlchemy ORM for data persistence
 - Automated data validation (Pydantic v2)
 - Extended CSV format support (8 columns)
-- Database support (SQLite/PostgreSQL)
+- Database support (PostgreSQL 15+)
 
 ✅ **Production-Ready Deployment**
 - Docker containerization
@@ -119,8 +119,10 @@ The **Line Balance System** is an intelligent production line optimization tool 
 - **Undo/Redo Support**: Non-destructive editing workflow
 
 **Documentation**:
-- [Phase 3 Architecture](docs/PHASE3_ARCHITECTURE_EN.md) - Complete system design
-- [Phase 3 API Specification](docs/PHASE3_API_SPEC_EN.md) - API endpoints
+- [Phase 1 Architecture](docs/PHASE1_ARCHITECTURE_EN.md) - Core optimization engine
+- [Phase 2 Architecture](docs/PHASE2_ARCHITECTURE_EN.md) - Multi-line & Layouts
+- [Phase 3 Architecture](docs/PHASE3_ARCHITECTURE_EN.md) - AI/ML & 3D Simulation
+- [Database & API Design](docs/DATABASE_API_DESIGN_SPEC_EN.md) - Complete schema & endpoints
 - [Phase 3 Implementation Guide](docs/PHASE3_IMPLEMENTATION_EN.md) - Step-by-step implementation
 
 ---
@@ -131,6 +133,7 @@ The **Line Balance System** is an intelligent production line optimization tool 
 - Python 3.10+
 - Docker 24+ (optional)
 - 4GB+ RAM
+- PostgreSQL 15+ (for full features)
 
 ### Installation (3 Steps)
 
@@ -198,6 +201,29 @@ python3 data/validate_full_extended_data.py data/test_tasks_full_extended.csv
 │  │  - version_manager.py (Git-like versioning)                  │  │
 │  │  - collision_detector.py (AABB/OBB/Mesh)                     │  │
 │  │  - omniverse_connector.py (USD scene management)             │  │
+│  │  - database_manager.py (SQLAlchemy ORM)                      │  │
+│  └─────────────────────┬───────────────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────────────┘
+                         │ SQL Queries + AI Model Execution
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Data Layer (PostgreSQL 15+)                       │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  Core Tables (Phase 1):                                      │  │
+│  │  - organizations, sites, users, work_orders, tasks           │  │
+│  │  - optimizations, stations, task_assignments                 │  │
+│  │                                                               │  │
+│  │  Extended Tables (Phase 2):                                  │  │
+│  │  - layouts, layout_stations, layout_connections              │  │
+│  │  - product_configs                                           │  │
+│  │                                                               │  │
+│  │  Advanced Tables (Phase 3):                                  │  │
+│  │  - sensor_sessions, motion_captures, ergonomic_analyses      │  │
+│  │  - nlp_queries, model_3d_catalog                             │  │
+│  │  - configurations, config_snapshots                          │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
 │  └─────────────────────┬───────────────────────────────────────────┘  │
 └────────────────────────┼───────────────────────────────────────────┘
                          │
