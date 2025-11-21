@@ -1,10 +1,11 @@
 # Phase 3 Architecture Design
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-12  
+**Document Version**: 1.0 | **Last Updated**: 2025-11-20  
 **Related Documents**:
 - [Phase 3 Implementation Guide](PHASE3_IMPLEMENTATION_EN.md)
 - [Phase 3 API Specification](PHASE3_API_SPEC_EN.md)
 - [Phase 2 Architecture](PHASE2_ARCHITECTURE_EN.md)
+- [Database & API Design](DATABASE_API_DESIGN_SPEC_EN.md)
 - [Requirements Coverage Analysis](REQUIREMENTS_COVERAGE_ANALYSIS.md)
 
 ---
@@ -29,7 +30,7 @@
 
 ### Design Principles
 
-Phase 3 extends the architecture with advanced AI/ML and 3D capabilities:
+Phase 3 extends the four-tier architecture with advanced AI/ML and 3D capabilities:
 
 1. **Presentation Layer** (Frontend)
    - Technology: React + Three.js + **NVIDIA Omniverse Kit**
@@ -37,16 +38,21 @@ Phase 3 extends the architecture with advanced AI/ML and 3D capabilities:
    - Responsibility: Advanced 3D visualization, interactive simulation
 
 2. **Service Layer** (Backend API)
-   - Technology: FastAPI + **LangChain** + **PostgreSQL**
-   - Components: NLP Engine, Version Control, Collision Detector
+   - Technology: FastAPI + **LangChain** + **PostgreSQL** + **JWT Auth**
+   - Components: NLP Engine, Version Control, Collision Detector, Database Management
    - Responsibility: AI orchestration, data versioning, physics simulation
 
-3. **AI/ML Layer** (Intelligence Engine)
+3. **Data Layer** (Advanced Persistence)
+   - Technology: PostgreSQL + **Sensor Data Tables** + **3D Model Catalog** + Redis Cache
+   - Components: Motion capture storage, NLP query history, 3D model metadata, version control
+   - Responsibility: Complex AI data relationships, sensor data storage, multi-modal data management
+
+4. **AI/ML Layer** (Intelligence Engine)
    - Technology: **OpenAI GPT-4** + **PyTorch** + **MediaPipe**
    - Components: LLM Query Engine, Sensor Data Processor, Motion Analyzer
    - Responsibility: Natural language understanding, motion capture processing
 
-4. **3D Simulation Layer** (Rendering Engine)
+5. **3D Simulation Layer** (Rendering Engine)
    - Technology: **NVIDIA Omniverse** + **USD (Universal Scene Description)**
    - Components: 3D Asset Library, Physics Engine, Collaboration Platform
    - Responsibility: Photorealistic rendering, real-time simulation, multi-user collaboration
@@ -74,7 +80,7 @@ Phase 3 extends the architecture with advanced AI/ML and 3D capabilities:
 │  │  └───────────────────────────────────────────────────────────┘ │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 └──────────────────────┬──────────────────────────────────────────────┘
-                       │ WebSocket + REST API
+                       │ WebSocket + REST API (HTTPS + JWT)
                        ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      Backend API Layer (Phase 3)                     │
@@ -82,26 +88,55 @@ Phase 3 extends the architecture with advanced AI/ML and 3D capabilities:
 │  │  api_server.py (Extended FastAPI Application)                │  │
 │  │  ┌─────────────────────────────────────────────────────────┐  │  │
 │  │  │  Phase 3 NEW Endpoints                                  │  │  │
-│  │  │  - POST /nlp-query           (Natural Language Query)   │  │  │
-│  │  │  - GET  /3d-models           (3D Asset Management)      │  │  │
-│  │  │  - POST /upload-sensor-data  (Body Sensor Ingestion)    │  │  │
-│  │  │  - GET  /versions            (Version Management)       │  │  │
-│  │  │  - POST /check-collision     (Interference Detection)   │  │  │
-│  │  │  - GET  /omniverse-session   (3D Simulation Session)    │  │  │
-│  │  │  - POST /share-configuration (Cross-Site Sharing)       │  │  │
+│  │  │  - POST /api/v3/nlp-query          (Natural Language)   │  │  │
+│  │  │  - GET  /api/v3/3d-models          (3D Asset Management)│  │  │
+│  │  │  - POST /api/v3/sensor-data        (Body Sensor Data)   │  │  │
+│  │  │  - GET  /api/v3/versions           (Version Management) │  │  │
+│  │  │  - POST /api/v3/check-collision    (Interference Check) │  │  │
+│  │  │  - GET  /api/v3/omniverse-session  (3D Simulation)      │  │  │
+│  │  │  - POST /api/v3/share-config       (Cross-Site Sharing) │  │  │
 │  │  └─────────────────┬───────────────────────────────────────┘  │  │
 │  │                    │                                           │  │
 │  │  ┌─────────────────▼───────────────────────────────────────┐  │  │
 │  │  │  Service Modules (NEW)                                  │  │  │
-│  │  │  - nlp_service.py         (LangChain integration)       │  │  │
+│  │  │  - nlp_service.py         (LangChain + GPT-4)           │  │  │
 │  │  │  - sensor_processor.py    (Motion data analysis)        │  │  │
 │  │  │  - version_manager.py     (Git-like versioning)         │  │  │
 │  │  │  - collision_detector.py  (Physics collision check)     │  │  │
 │  │  │  - omniverse_connector.py (USD scene management)        │  │  │
+│  │  │  - database_manager.py    (ORM & data persistence)      │  │  │
 │  │  └─────────────────┬───────────────────────────────────────┘  │  │
 │  └────────────────────┼───────────────────────────────────────────┘  │
 └────────────────────────┼───────────────────────────────────────────┘
-                         │
+                         │ SQL queries + AI/ML API calls
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Data Layer (Phase 3 Enhanced)                     │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  PostgreSQL Database (Extended Schema)                        │  │
+│  │  ┌─────────────────────────────────────────────────────────┐  │  │
+│  │  │  Phase 3 Advanced Tables                                │  │  │
+│  │  │  - sensor_sessions (video uploads, worker tracking)     │  │  │
+│  │  │  - motion_captures (pose landmarks, REBA scores)        │  │  │
+│  │  │  - ergonomic_analyses (efficiency, fatigue prediction)  │  │  │
+│  │  │  - nlp_queries (query history, intent classification)   │  │  │
+│  │  │  - model_3d_catalog (USD files, 3D asset metadata)     │  │  │
+│  │  │  - configurations (git-like version control)           │  │  │
+│  │  │  - config_snapshots (rollback capability)              │  │  │
+│  │  │  + All Phase 1 & 2 tables (inherited and extended)     │  │  │
+│  │  └─────────────────┬───────────────────────────────────────┘  │  │
+│  │                    │                                           │  │
+│  │  ┌─────────────────▼───────────────────────────────────────┐  │  │
+│  │  │  Redis Cache (Phase 3 Enhanced)                        │  │  │
+│  │  │  - NLP query responses (5min TTL)                       │  │  │
+│  │  │  - 3D model metadata (1 week TTL)                      │  │  │
+│  │  │  - Sensor analysis results (1 day TTL)                 │  │  │
+│  │  │  - Version control snapshots (1 hour TTL)              │  │  │
+│  │  │  - Collision detection cache (24 hour TTL)             │  │  │
+│  │  └─────────────────┬───────────────────────────────────────┘  │  │
+│  └────────────────────┼───────────────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────────────┘
+                         │ AI/ML model execution + 3D rendering
                          ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      AI/ML Layer (Phase 3)                           │
@@ -109,9 +144,50 @@ Phase 3 extends the architecture with advanced AI/ML and 3D capabilities:
 │  │  NLP Engine (LangChain + OpenAI GPT-4)                        │  │
 │  │  - Intent Recognition: "Show me the bottleneck station"       │  │
 │  │  - Entity Extraction: Work order, SKU, station numbers       │  │
-│  │  - Query Translation: NL → API calls                         │  │
-│  │  - Response Generation: API results → Natural language       │  │
+│  │  - Query Translation: Natural Language → SQL/API calls       │  │
+│  │  - Response Generation: Data results → Natural language      │  │
 │  └───────────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  Sensor Data Processor (PyTorch + MediaPipe)                  │  │
+│  │  - Pose Estimation: 33-point body landmark detection         │  │
+│  │  - Motion Classification: Install/Mount/Screw/Test           │  │
+│  │  - Motion Efficiency Analysis: Expert vs. Novice comparison  │  │
+│  │  - REBA Score Calculation: Ergonomic risk assessment         │  │
+│  │  - Fatigue Prediction: Movement pattern analysis             │  │
+│  │  - Training Recommendations: Personalized improvement        │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                   3D Simulation Layer (Phase 3)                      │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  NVIDIA Omniverse Platform                                    │  │
+│  │  ┌─────────────────────────────────────────────────────────┐  │  │
+│  │  │  USD Scene Graph (from Database)                        │  │  │
+│  │  │  - Workstation 3D Models (.usd files)                   │  │  │
+│  │  │  - Product Assembly Models (.usd files)                 │  │  │
+│  │  │  - Worker Digital Twins (.usd files)                    │  │  │
+│  │  │  - Layout Configurations (spatial positioning)          │  │  │
+│  │  └─────────────────┬───────────────────────────────────────┘  │  │
+│  │                    │                                           │  │
+│  │  ┌─────────────────▼───────────────────────────────────────┐  │  │
+│  │  │  PhysX Physics Engine (Database-driven)                │  │  │
+│  │  │  - Collision Detection (cached in Redis)                │  │  │
+│  │  │  - Reach Analysis (from sensor data)                    │  │  │
+│  │  │  - Space Optimization (layout validation)               │  │  │
+│  │  └─────────────────┬───────────────────────────────────────┘  │  │
+│  │                    │                                           │  │
+│  │  ┌─────────────────▼───────────────────────────────────────┐  │  │
+│  │  │  Nucleus Collaboration Server (Multi-tenant)           │  │  │
+│  │  │  - Multi-user simultaneous editing                      │  │  │
+│  │  │  - Real-time synchronization                            │  │  │
+│  │  │  - Version control (database-backed)                    │  │  │
+│  │  │  - Cross-site configuration sharing                     │  │  │
+│  │  └─────────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │  Sensor Data Processor (PyTorch + MediaPipe)                  │  │
 │  │  - Pose Estimation: 33-point body landmark detection         │  │
@@ -1664,44 +1740,392 @@ User: "Show me the 3D simulation of the optimized layout for WO_A"
 
 ## Database Schema
 
-### New Tables (Phase 3)
+### Phase 3 Advanced PostgreSQL Schema
+
+Phase 3 extends the database with AI/ML data structures, sensor data, and 3D model management. For the complete database schema, refer to [Database & API Design Specification](DATABASE_API_DESIGN_SPEC_EN.md).
+
+#### Core Phase 3 Tables
 
 ```sql
--- Sensor motion data
-CREATE TABLE sensor_data (
+-- Phase 3: Motion capture sessions
+CREATE TABLE sensor_sessions (
     id SERIAL PRIMARY KEY,
+    site_id INTEGER REFERENCES sites(id),
     worker_id VARCHAR(50) NOT NULL,
-    session_id VARCHAR(100),
-    motion_json JSONB NOT NULL,  -- MediaPipe landmarks
-    action_type VARCHAR(50),     -- install, mount, screw, etc.
-    reba_score INTEGER,          -- Ergonomic score 1-15
-    timestamp TIMESTAMP DEFAULT NOW(),
-    video_url TEXT,
-    INDEX idx_worker_session (worker_id, session_id),
-    INDEX idx_timestamp (timestamp)
+    session_id VARCHAR(100) NOT NULL,
+    
+    -- Session context
+    task_id INTEGER,
+    station_code VARCHAR(50),
+    work_order_id INTEGER REFERENCES work_orders(id),
+    
+    -- Recording metadata
+    video_file_path VARCHAR(255),
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP,
+    camera_position VARCHAR(50),
+    
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- 3D model library
-CREATE TABLE model_library (
+-- Motion capture frame-by-frame data
+CREATE TABLE motion_captures (
     id SERIAL PRIMARY KEY,
-    model_name VARCHAR(200) NOT NULL,
-    usd_path TEXT NOT NULL,           -- Path to USD file
-    category VARCHAR(50),              -- workstation, product, tool
-    dimensions JSONB,                  -- {width, depth, height}
-    thumbnail_url TEXT,
-    metadata JSONB,                    -- Additional properties
+    session_id INTEGER REFERENCES sensor_sessions(id),
+    frame_number INTEGER NOT NULL,
+    timestamp_ms INTEGER NOT NULL,
+    
+    -- MediaPipe pose landmarks (33 points)
+    pose_landmarks JSONB NOT NULL,
+    
+    -- Derived ergonomic metrics
+    reba_score INTEGER,
+    neck_angle DECIMAL(5,2),
+    back_angle DECIMAL(5,2),
+    shoulder_elevation DECIMAL(5,2),
+    
+    -- Motion classification
+    action_type VARCHAR(50),
+    confidence_score DECIMAL(4,3),
+    
     created_at TIMESTAMP DEFAULT NOW(),
-    INDEX idx_category (category)
+    UNIQUE(session_id, frame_number)
 );
 
--- Version control
-CREATE TABLE versions (
+-- Aggregated ergonomic analysis
+CREATE TABLE ergonomic_analyses (
     id SERIAL PRIMARY KEY,
-    config_type VARCHAR(50) NOT NULL,  -- layout, optimization, product_config
+    session_id INTEGER REFERENCES sensor_sessions(id),
+    
+    -- REBA scores
+    avg_reba_score DECIMAL(4,2),
+    max_reba_score INTEGER,
+    high_risk_duration_ms INTEGER,
+    
+    -- Efficiency metrics
+    movement_smoothness DECIMAL(4,3),
+    repetitive_strain_risk DECIMAL(4,3),
+    efficiency_score DECIMAL(5,2),
+    
+    -- Recommendations
+    recommended_break_intervals INTEGER,
+    ergonomic_improvements JSONB,
+    
+    analyzed_at TIMESTAMP DEFAULT NOW()
+);
+
+-- NLP query history
+CREATE TABLE nlp_queries (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    query_text TEXT NOT NULL,
+    
+    -- Intent classification
+    intent VARCHAR(100),
+    entities JSONB,
+    
+    -- Generated API calls
+    api_endpoint VARCHAR(255),
+    api_parameters JSONB,
+    
+    -- Response
+    response_text TEXT,
+    response_data JSONB,
+    
+    -- Performance tracking
+    processing_time_ms INTEGER,
+    confidence_score DECIMAL(4,3),
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 3D model catalog
+CREATE TABLE model_3d_catalog (
+    id SERIAL PRIMARY KEY,
+    model_name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    
+    -- File references
+    usd_file_path VARCHAR(255) NOT NULL,
+    thumbnail_path VARCHAR(255),
+    
+    -- Metadata
+    dimensions JSONB,
+    vertex_count INTEGER,
+    file_size_mb DECIMAL(8,2),
+    
+    -- Version control
+    version VARCHAR(50) NOT NULL,
+    parent_model_id INTEGER REFERENCES model_3d_catalog(id),
+    
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Enhanced configuration management
+CREATE TABLE configurations (
+    id SERIAL PRIMARY KEY,
+    site_id INTEGER REFERENCES sites(id),
+    config_type VARCHAR(50) NOT NULL,
+    config_name VARCHAR(255) NOT NULL,
+    
+    -- Configuration data
     config_data JSONB NOT NULL,
-    version_hash VARCHAR(8) UNIQUE NOT NULL,
-    author VARCHAR(100) NOT NULL,
-    site VARCHAR(100) NOT NULL,
+    
+    -- Version control
+    version VARCHAR(50) NOT NULL,
+    parent_config_id INTEGER REFERENCES configurations(id),
+    commit_message TEXT,
+    
+    -- Metadata
+    author INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    UNIQUE(site_id, config_type, config_name, version)
+);
+
+-- Configuration snapshots for rollback
+CREATE TABLE config_snapshots (
+    id SERIAL PRIMARY KEY,
+    configuration_id INTEGER REFERENCES configurations(id),
+    snapshot_data JSONB NOT NULL,
+    snapshot_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Phase 3 API Endpoints
+
+```yaml
+# Natural Language Query APIs
+POST   /api/v3/nlp-query                    # Process natural language query
+GET    /api/v3/nlp-query/history            # Query history for user
+
+# Sensor Data APIs
+POST   /api/v3/sensor-data                  # Upload motion capture video
+GET    /api/v3/sensor-data/{session_id}     # Get session details
+GET    /api/v3/sensor-data/{session_id}/analysis  # Ergonomic analysis
+
+# 3D Model Management APIs
+GET    /api/v3/3d-models                    # List available 3D models
+POST   /api/v3/3d-models                    # Upload new 3D model
+GET    /api/v3/3d-models/{id}               # Get model metadata
+POST   /api/v3/3d-models/{id}/render        # Request model rendering
+
+# Version Control APIs
+GET    /api/v3/versions                     # List configuration versions
+POST   /api/v3/versions                     # Create new version
+GET    /api/v3/versions/{id}/restore        # Restore previous version
+GET    /api/v3/versions/compare             # Compare two versions
+
+# Collision Detection APIs
+POST   /api/v3/check-collision              # Run collision detection
+GET    /api/v3/collision-report/{opt_id}    # Get collision report
+
+# Multi-site Sharing APIs
+POST   /api/v3/share-configuration          # Share config across sites
+GET    /api/v3/shared-configurations        # List shared configs
+```
+
+### Data Input Schema Evolution (Phase 3)
+
+Phase 3 supports advanced data types including video uploads, 3D models, and natural language queries:
+
+#### Sensor Data Upload Request
+```json
+{
+  "worker_id": "W001",
+  "session_id": "session_20250114_101",
+  "video_file": "<binary_data>",
+  "metadata": {
+    "task_id": 5,
+    "start_time": "2025-01-14T10:30:00Z",
+    "camera_position": "overhead",
+    "station_code": "WS-001"
+  }
+}
+```
+
+#### Natural Language Query Request
+```json
+{
+  "query": "Show me the bottleneck station in WO_A",
+  "context": {
+    "work_order_id": "WO_A",
+    "user_id": "engineer_123",
+    "site_id": 1
+  }
+}
+```
+
+#### 3D Model Upload Request
+```json
+{
+  "model_name": "Workstation_Type_A",
+  "category": "workstation",
+  "usd_file": "<binary_data>",
+  "dimensions": {
+    "width": 2.0,
+    "depth": 1.5,
+    "height": 2.0
+  },
+  "metadata": {
+    "manufacturer": "HPE",
+    "model_year": 2025,
+    "capacity": 3
+  }
+}
+```
+
+#### Version Control Request
+```json
+{
+  "config_type": "layout",
+  "config_data": {
+    "stations": [...],
+    "connections": [...]
+  },
+  "author": "john_doe",
+  "site": "factory_A",
+  "message": "Updated conveyor layout for Line A",
+  "create_snapshot": true
+}
+```
+
+### ORM Models (SQLAlchemy - Phase 3)
+
+```python
+from sqlalchemy import Column, Integer, String, Text, DECIMAL, Boolean, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
+class SensorSession(Base):
+    __tablename__ = 'sensor_sessions'
+    
+    id = Column(Integer, primary_key=True)
+    site_id = Column(Integer, ForeignKey('sites.id'))
+    worker_id = Column(String(50), nullable=False)
+    session_id = Column(String(100), nullable=False)
+    
+    # Context
+    task_id = Column(Integer)
+    station_code = Column(String(50))
+    work_order_id = Column(Integer, ForeignKey('work_orders.id'))
+    
+    # Metadata
+    video_file_path = Column(String(255))
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime)
+    camera_position = Column(String(50))
+    
+    created_by = Column(Integer, ForeignKey('users.id'))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    motion_captures = relationship("MotionCapture", back_populates="session")
+    analysis = relationship("ErgonomicAnalysis", back_populates="session", uselist=False)
+
+class MotionCapture(Base):
+    __tablename__ = 'motion_captures'
+    
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey('sensor_sessions.id'))
+    frame_number = Column(Integer, nullable=False)
+    timestamp_ms = Column(Integer, nullable=False)
+    
+    # Pose data
+    pose_landmarks = Column(JSONB, nullable=False)
+    
+    # Metrics
+    reba_score = Column(Integer)
+    neck_angle = Column(DECIMAL(5,2))
+    back_angle = Column(DECIMAL(5,2))
+    shoulder_elevation = Column(DECIMAL(5,2))
+    
+    # Classification
+    action_type = Column(String(50))
+    confidence_score = Column(DECIMAL(4,3))
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    session = relationship("SensorSession", back_populates="motion_captures")
+
+class NLPQuery(Base):
+    __tablename__ = 'nlp_queries'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    query_text = Column(Text, nullable=False)
+    
+    # Intent
+    intent = Column(String(100))
+    entities = Column(JSONB)
+    
+    # API execution
+    api_endpoint = Column(String(255))
+    api_parameters = Column(JSONB)
+    
+    # Response
+    response_text = Column(Text)
+    response_data = Column(JSONB)
+    
+    # Performance
+    processing_time_ms = Column(Integer)
+    confidence_score = Column(DECIMAL(4,3))
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User")
+
+class Model3D(Base):
+    __tablename__ = 'model_3d_catalog'
+    
+    id = Column(Integer, primary_key=True)
+    model_name = Column(String(255), nullable=False)
+    category = Column(String(100), nullable=False)
+    
+    # Files
+    usd_file_path = Column(String(255), nullable=False)
+    thumbnail_path = Column(String(255))
+    
+    # Metadata
+    dimensions = Column(JSONB)
+    vertex_count = Column(Integer)
+    file_size_mb = Column(DECIMAL(8,2))
+    
+    # Version
+    version = Column(String(50), nullable=False)
+    parent_model_id = Column(Integer, ForeignKey('model_3d_catalog.id'))
+    
+    created_by = Column(Integer, ForeignKey('users.id'))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    creator = relationship("User")
+    parent = relationship("Model3D", remote_side=[id])
+```
+
+### Performance Optimizations (Phase 3)
+
+```sql
+-- Sensor data partitioning by month
+CREATE TABLE motion_captures_2025_01 PARTITION OF motion_captures
+FOR VALUES FROM (1704067200) TO (1706745600);
+
+-- Indexing for common queries
+CREATE INDEX idx_sensor_worker_task ON sensor_sessions(worker_id, task_id);
+CREATE INDEX idx_motion_session_time ON motion_captures(session_id, timestamp_ms);
+CREATE INDEX idx_nlp_user_time ON nlp_queries(user_id, created_at DESC);
+CREATE INDEX idx_model_category ON model_3d_catalog(category);
+
+-- Full-text search for NLP queries
+CREATE INDEX idx_nlp_query_text ON nlp_queries USING gin(to_tsvector('english', query_text));
+```
     message TEXT,
     parent_hash VARCHAR(8),            -- For branching
     created_at TIMESTAMP DEFAULT NOW(),

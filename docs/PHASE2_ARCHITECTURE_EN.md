@@ -1,10 +1,11 @@
 # Phase 2 Architecture Design
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-12  
+**Document Version**: 2.0 | **Last Updated**: 2025-11-20  
 **Related Documents**:
 - [Phase 2 Implementation Guide](PHASE2_IMPLEMENTATION_EN.md)
 - [Phase 2 API Specification](PHASE2_API_SPEC_EN.md)
 - [Phase 1 Architecture](PHASE1_ARCHITECTURE_EN.md)
+- [Database & API Design](DATABASE_API_DESIGN_SPEC_EN.md)
 
 ---
 
@@ -26,7 +27,7 @@
 
 ### Design Principles
 
-Phase 2 extends the three-tier architecture with new capabilities:
+Phase 2 extends the four-tier architecture with advanced manufacturing capabilities:
 
 1. **Presentation Layer** (Frontend)
    - Technology: HTML5 + Tailwind CSS + Chart.js + **Canvas API**
@@ -34,11 +35,16 @@ Phase 2 extends the three-tier architecture with new capabilities:
    - Responsibility: User interaction, advanced visualization
 
 2. **Service Layer** (Backend API)
-   - Technology: FastAPI + Pydantic + **SQLite/PostgreSQL**
+   - Technology: FastAPI + Pydantic + **PostgreSQL** + **JWT Auth**
    - New Features: Multi-line endpoints, layout management, product config
    - Responsibility: Request validation, business logic, data persistence
 
-3. **Algorithm Layer** (Optimization Engine)
+3. **Data Layer** (Enhanced Persistence)
+   - Technology: PostgreSQL + **Layout Tables** + **Product Configs** + Redis Cache
+   - New Features: 2D spatial data, CTO/BTO mappings, version control
+   - Responsibility: Complex data relationships, layout storage, configuration management
+
+4. **Algorithm Layer** (Advanced Optimization Engine)
    - Technology: Google OR-Tools (CP-SAT Solver) + **NetworkX**
    - New Features: Multi-line model, fishbone graph generator, line type recommender
    - Responsibility: Advanced optimization, graph generation
@@ -74,14 +80,40 @@ Phase 2 extends the three-tier architecture with new capabilities:
 │  │  └─────────────────┬───────────────────────────────┘  │  │
 │  │                    │                                   │  │
 │  │  ┌─────────────────▼───────────────────────────────┐  │  │
-│  │  │  Database Access Layer (NEW)                    │  │  │
-│  │  │  - Layout Storage                               │  │  │
+│  │  │  Database Access Layer (ENHANCED)               │  │  │
+│  │  │  - Layout Storage (PostgreSQL)                  │  │  │
 │  │  │  - Product Config (CTO/BTO)                     │  │  │
-│  │  │  - Optimization History                         │  │  │
+│  │  │  - Multi-line Optimization History              │  │  │
+│  │  │  - Version Control & Configuration Management   │  │  │
 │  │  └─────────────────┬───────────────────────────────┘  │  │
 │  └────────────────────┼───────────────────────────────────┘  │
 └────────────────────────┼───────────────────────────────────┘
-                         │ subprocess.run() / DB queries
+                         │ SQL queries / subprocess.run()
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                Data Layer (ENHANCED)                        │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  PostgreSQL Database                                  │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Phase 2 Extended Tables                        │  │  │
+│  │  │  - layouts (spatial data, stations, connections)│  │  │
+│  │  │  - layout_stations (positioning, dimensions)    │  │  │
+│  │  │  - layout_connections (conveyors, AGVs)         │  │  │
+│  │  │  - product_configs (CTO/BTO mappings)           │  │  │
+│  │  │  - configurations (version control)             │  │  │
+│  │  │  + All Phase 1 tables (extended)                │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  │                    │                                   │  │
+│  │  ┌─────────────────▼───────────────────────────────┐  │  │
+│  │  │  Redis Cache (ENHANCED)                         │  │  │
+│  │  │  - Layout data (24hr TTL)                       │  │  │
+│  │  │  - Multi-line optimization results (2hr TTL)    │  │  │
+│  │  │  - Fishbone diagram cache (1hr TTL)             │  │  │
+│  │  │  - Product config cache (1 week TTL)            │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  └────────────────────┼───────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────┘
+                         │ CSV generation / Multi-line models
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Algorithm Layer                            │
@@ -96,20 +128,10 @@ Phase 2 extends the three-tier architecture with new capabilities:
 │  │                    │                                   │  │
 │  │  ┌─────────────────▼───────────────────────────────┐  │  │
 │  │  │  fishbone-generator.py (NEW)                    │  │  │
-│  │  │  - Task sequence graph (NetworkX)               │  │  │
+│  │  │  - Task precedence graph (NetworkX)             │  │  │
 │  │  │  - SVG/PNG export                               │  │  │
+│  │  │  - Interactive diagram generation               │  │  │
 │  │  └─────────────────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────────────────┘  │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────────┐
-│                  Database Layer (NEW)                        │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │  SQLite / PostgreSQL                                  │  │
-│  │  Tables:                                              │  │
-│  │  - layouts (id, name, data_json, created_at)         │  │
-│  │  - product_configs (sku, cto_bto_map, complexity)    │  │
-│  │  - optimization_history (work_order, result, ...)    │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -643,59 +665,272 @@ def get_action_color(action_type):
 
 ## Database Schema
 
-### SQLite/PostgreSQL Tables
+### Phase 2 Extended PostgreSQL Schema
 
-#### 1. `layouts` Table
+Phase 2 extends the Phase 1 schema with spatial data, layout management, and product configuration:
+
 ```sql
+-- Phase 2: Layout management tables
 CREATE TABLE layouts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
+    site_id INTEGER REFERENCES sites(id),
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    data_json TEXT NOT NULL,  -- JSON: {stations: [...], connections: [...]}
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    layout_type VARCHAR(20) DEFAULT '2d',    -- 2d, 3d
+    
+    -- Layout metadata  
+    dimensions_json JSONB,                   -- {"width": 100, "depth": 50, "height": 10}
+    units VARCHAR(10) DEFAULT 'meters',      -- meters, feet, inches
+    
+    -- Version control
+    version VARCHAR(50) NOT NULL,
+    parent_layout_id INTEGER REFERENCES layouts(id),
+    
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE
 );
-```
 
-#### 2. `product_configs` Table
-```sql
+-- Station definitions within layouts
+CREATE TABLE layout_stations (
+    id SERIAL PRIMARY KEY,
+    layout_id INTEGER REFERENCES layouts(id),
+    station_code VARCHAR(50) NOT NULL,      -- WS-001, WS-002, etc.
+    station_type VARCHAR(50) NOT NULL,      -- assembly, test, packaging
+    
+    -- Positioning
+    position_x DECIMAL(8,3) NOT NULL,
+    position_y DECIMAL(8,3) NOT NULL, 
+    position_z DECIMAL(8,3) DEFAULT 0,
+    
+    -- Dimensions
+    width DECIMAL(6,3) NOT NULL,
+    depth DECIMAL(6,3) NOT NULL,
+    height DECIMAL(6,3) DEFAULT 2,
+    
+    -- Multi-line assignment
+    line_id VARCHAR(10),                     -- A, B, C for multi-line
+    
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(layout_id, station_code)
+);
+
+-- Connections between stations (conveyors, AGVs)
+CREATE TABLE layout_connections (
+    id SERIAL PRIMARY KEY,
+    layout_id INTEGER REFERENCES layouts(id),
+    from_station_id INTEGER REFERENCES layout_stations(id),
+    to_station_id INTEGER REFERENCES layout_stations(id),
+    connection_type VARCHAR(50) NOT NULL,   -- conveyor, agv, manual
+    
+    -- Connection properties
+    length_meters DECIMAL(6,3),
+    speed_mps DECIMAL(5,3),                 -- meters per second
+    capacity INTEGER,                       -- max items in transit
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Phase 2: Product configuration for CTO/BTO
 CREATE TABLE product_configs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sku VARCHAR(100) UNIQUE NOT NULL,
-    product_name VARCHAR(255),
-    cto_bto_map TEXT,  -- JSON: {component_type: {option_id: specs}}
-    default_complexity VARCHAR(50),  -- simple, medium, complex
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id SERIAL PRIMARY KEY,
+    sku VARCHAR(100) NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    complexity_level VARCHAR(20) DEFAULT 'medium',
+    cto_bto_mapping JSONB,                  -- Configure-to-Order mappings
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Enhanced task table (extends Phase 1)
+ALTER TABLE tasks ADD COLUMN line_id VARCHAR(10);  -- Multi-line support
+
+-- Enhanced optimization table (extends Phase 1) 
+ALTER TABLE optimizations ADD COLUMN multi_line_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE optimizations ADD COLUMN cross_line_balancing BOOLEAN DEFAULT FALSE;
+ALTER TABLE optimizations ADD COLUMN layout_id INTEGER REFERENCES layouts(id);
+
+-- Enhanced station table (extends Phase 1)
+ALTER TABLE stations ADD COLUMN line_id VARCHAR(10);
+ALTER TABLE stations ADD COLUMN position_x DECIMAL(8,3);
+ALTER TABLE stations ADD COLUMN position_y DECIMAL(8,3);
+ALTER TABLE stations ADD COLUMN position_z DECIMAL(8,3) DEFAULT 0;
 ```
 
-#### 3. `optimization_history` Table
-```sql
-CREATE TABLE optimization_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    work_order_id VARCHAR(100) NOT NULL,
-    optimization_goal VARCHAR(50),
-    num_lines INTEGER DEFAULT 1,
-    result_json TEXT NOT NULL,  -- Full optimization result
-    solve_time_sec REAL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+### Phase 2 API Endpoints (Extensions)
+
+```yaml
+# Layout Management APIs
+POST   /api/v2/layouts                      # Create new factory layout
+GET    /api/v2/layouts                      # List all layouts for site
+GET    /api/v2/layouts/{id}                 # Get specific layout
+PUT    /api/v2/layouts/{id}                 # Update existing layout
+DELETE /api/v2/layouts/{id}                 # Soft delete layout
+
+# Product Configuration APIs
+GET    /api/v2/product-configs              # List product configs (CTO/BTO)
+POST   /api/v2/product-configs              # Create product config
+PUT    /api/v2/product-configs/{sku}        # Update product config
+
+# Multi-line Optimization APIs (Enhanced)
+POST   /api/v2/optimizations                # Multi-line optimization
+GET    /api/v2/optimizations/{id}/lines     # Get line-specific results
+
+# Fishbone Diagram APIs
+GET    /api/v2/fishbone-diagram/{opt_id}    # Generate fishbone diagram
+GET    /api/v2/recommend-line-type          # Line type recommendation
+
+# Configuration Management APIs
+POST   /api/v2/configurations               # Save configuration version
+GET    /api/v2/configurations               # List configuration versions
+GET    /api/v2/configurations/{id}/restore  # Restore configuration version
 ```
 
 ### ORM Models (SQLAlchemy)
 
 ```python
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Text, DECIMAL, Boolean, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from datetime import datetime
-
-Base = declarative_base()
 
 class Layout(Base):
     __tablename__ = 'layouts'
     
     id = Column(Integer, primary_key=True)
+    site_id = Column(Integer, ForeignKey('sites.id'))
     name = Column(String(255), nullable=False)
+    description = Column(Text)
+    layout_type = Column(String(20), default='2d')
+    
+    # Metadata
+    dimensions_json = Column(JSONB)
+    units = Column(String(10), default='meters')
+    
+    # Version control
+    version = Column(String(50), nullable=False)
+    parent_layout_id = Column(Integer, ForeignKey('layouts.id'))
+    
+    # Audit
+    created_by = Column(Integer, ForeignKey('users.id'))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    stations = relationship("LayoutStation", back_populates="layout")
+    connections = relationship("LayoutConnection", back_populates="layout")
+
+class LayoutStation(Base):
+    __tablename__ = 'layout_stations'
+    
+    id = Column(Integer, primary_key=True)
+    layout_id = Column(Integer, ForeignKey('layouts.id'))
+    station_code = Column(String(50), nullable=False)
+    station_type = Column(String(50), nullable=False)
+    
+    # Positioning
+    position_x = Column(DECIMAL(8,3), nullable=False)
+    position_y = Column(DECIMAL(8,3), nullable=False)
+    position_z = Column(DECIMAL(8,3), default=0)
+    
+    # Dimensions
+    width = Column(DECIMAL(6,3), nullable=False)
+    depth = Column(DECIMAL(6,3), nullable=False)
+    height = Column(DECIMAL(6,3), default=2)
+    
+    # Multi-line
+    line_id = Column(String(10))
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    layout = relationship("Layout", back_populates="stations")
+
+class ProductConfig(Base):
+    __tablename__ = 'product_configs'
+    
+    id = Column(Integer, primary_key=True)
+    sku = Column(String(100), nullable=False)
+    product_name = Column(String(255), nullable=False)
+    complexity_level = Column(String(20), default='medium')
+    cto_bto_mapping = Column(JSONB)  # {"CPU": {"option_1": "Intel Xeon Silver"}}
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+```
+
+### Data Input Schema Evolution
+
+Phase 2 extends CSV schemas to support multi-line operations:
+
+#### Enhanced `tasks_multi_line.csv` (Phase 2)
+```csv
+task_id,duration,offline_flag,adjustable,action_type,complexity_level,part_id,line_id,predecessors
+1,274,0,1,"screw","simple","GPU_GTX3080","A",
+2,223,1,0,"glue","medium","HDD_2TB","A",1
+5,186,0,1,"clip","simple","RAM_16GB","B",
+6,298,0,1,"screw","medium","CPU_XEON","B",5
+```
+
+#### Product Configuration JSON
+```json
+{
+  "sku": "DL360_GEN10",
+  "product_name": "HPE ProLiant DL360 Gen10",
+  "cto_bto_mapping": {
+    "CPU": {
+      "option_1": "Intel Xeon Silver 4210",
+      "option_2": "Intel Xeon Gold 6230"
+    },
+    "RAM": {
+      "option_1": "16GB DDR4",
+      "option_2": "32GB DDR4",
+      "option_3": "64GB DDR4"
+    },
+    "STORAGE": {
+      "option_1": "1TB HDD",
+      "option_2": "500GB SSD",
+      "option_3": "1TB SSD"
+    }
+  },
+  "default_complexity": "medium"
+}
+```
+
+#### Layout Definition JSON
+```json
+{
+  "name": "Factory A Multi-Line Layout",
+  "layout_type": "2d",
+  "dimensions": {"width": 100, "depth": 50, "height": 10},
+  "units": "meters",
+  "stations": [
+    {
+      "station_code": "WS-001",
+      "station_type": "assembly",
+      "position": {"x": 0, "y": 0, "z": 0},
+      "dimensions": {"width": 2, "depth": 1.5, "height": 2},
+      "line_id": "A"
+    },
+    {
+      "station_code": "WS-002",
+      "station_type": "assembly", 
+      "position": {"x": 4, "y": 0, "z": 0},
+      "dimensions": {"width": 2, "depth": 1.5, "height": 2},
+      "line_id": "A"
+    }
+  ],
+  "connections": [
+    {
+      "from": "WS-001",
+      "to": "WS-002", 
+      "type": "conveyor",
+      "length_meters": 3.5,
+      "speed_mps": 0.5
+    }
+  ]
+}
+```
     description = Column(Text)
     data_json = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.now)

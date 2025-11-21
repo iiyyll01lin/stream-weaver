@@ -1,9 +1,10 @@
 # Phase 1 Architecture Design
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-06  
+**Document Version**: 2.0 | **Last Updated**: 2025-11-20  
 **Related Documents**:
 - [Implementation Guide](PHASE1_IMPLEMENTATION_EN.md)
 - [API Specification](PHASE1_API_SPEC_EN.md)
+- [Database & API Design](DATABASE_API_DESIGN_SPEC_EN.md)
 - [Stage Specifications](stage-specs.md)
 
 ---
@@ -24,17 +25,21 @@
 
 ### Design Principles
 
-Phase 1 adopts a **three-tier architecture** to achieve separation of concerns and modular scalability:
+Phase 1 adopts a **four-tier architecture** to achieve separation of concerns and modular scalability:
 
 1. **Presentation Layer** (Frontend)
    - Technology: HTML5 + Tailwind CSS + Chart.js
    - Responsibility: User interaction, data visualization
 
 2. **Service Layer** (Backend API)
-   - Technology: FastAPI + Pydantic
+   - Technology: FastAPI + Pydantic + JWT Authentication
    - Responsibility: Request validation, business logic orchestration
 
-3. **Algorithm Layer** (Optimization Engine)
+3. **Data Layer** (Persistence)
+   - Technology: PostgreSQL + SQLAlchemy + Redis Cache
+   - Responsibility: Data storage, versioning, multi-tenant support
+
+4. **Algorithm Layer** (Optimization Engine)
    - Technology: Google OR-Tools (CP-SAT Solver)
    - Responsibility: Line balance optimization computation
 
@@ -74,7 +79,30 @@ Phase 1 adopts a **three-tier architecture** to achieve separation of concerns a
 │  │  └─────────────────┬───────────────────────────────┘  │  │
 │  └────────────────────┼───────────────────────────────────┘  │
 └────────────────────────┼───────────────────────────────────┘
-                         │ subprocess.run()
+                         │ SQL Queries / subprocess.run()
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Data Layer (NEW)                         │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  PostgreSQL Database                                  │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Core Tables                                    │  │  │
+│  │  │  - work_orders (WO_A/B/C data)                  │  │  │
+│  │  │  - tasks (CSV task data + precedences)          │  │  │
+│  │  │  - optimizations (solver results)               │  │  │
+│  │  │  - stations (workstation assignments)           │  │  │
+│  │  │  - users (authentication)                       │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  │                    │                                   │  │
+│  │  ┌─────────────────▼───────────────────────────────┐  │  │
+│  │  │  Redis Cache                                    │  │  │
+│  │  │  - Optimization results (1hr TTL)               │  │  │
+│  │  │  - Workstation details (1hr TTL)                │  │  │
+│  │  │  - Authentication tokens                        │  │  │
+│  │  └─────────────────┬───────────────────────────────┘  │  │
+│  └────────────────────┼───────────────────────────────────┘  │
+└────────────────────────┼───────────────────────────────────┘
+                         │ CSV generation / Model execution
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Algorithm Layer                            │
@@ -82,7 +110,7 @@ Phase 1 adopts a **three-tier architecture** to achieve separation of concerns a
 │  │  sche-algo.py (OR-Tools Solver)                       │  │
 │  │  ┌─────────────────────────────────────────────────┐  │  │
 │  │  │  Input Processing                               │  │  │
-│  │  │  - CSV Parsing (tasks/precedences/config)       │  │  │
+│  │  │  - DB Query Results → CSV Format                │  │  │
 │  │  │  - Data Validation                              │  │  │
 │  │  └─────────────────┬───────────────────────────────┘  │  │
 │  │                    │                                   │  │
@@ -96,7 +124,7 @@ Phase 1 adopts a **three-tier architecture** to achieve separation of concerns a
 │  │  ┌─────────────────▼───────────────────────────────┐  │  │
 │  │  │  Output Generation                              │  │  │
 │  │  │  - JSON (API Response)                          │  │  │
-│  │  │  - CSV (Station/KPI Details)                    │  │  │
+│  │  │  - DB Storage (Persistent Results)              │  │  │
 │  │  └─────────────────────────────────────────────────┘  │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
@@ -328,8 +356,14 @@ for j in range(num_stations):
 |                    | HTTP Client        | Fetch API          | Native Browser |
 | **Backend**        | Web Framework      | FastAPI            | 0.104+         |
 |                    | Data Validation    | Pydantic           | 2.0+           |
+|                    | Authentication     | JWT + OAuth2       | PyJWT 2.8+     |
+|                    | ORM                | SQLAlchemy         | 2.0+           |
+|                    | Migrations         | Alembic            | 1.12+          |
 |                    | ASGI Server        | Uvicorn            | 0.24+          |
 |                    | CORS Middleware    | FastAPI Middleware | Built-in       |
+| **Data**           | Database           | PostgreSQL         | 15+            |
+|                    | Cache              | Redis              | 7+             |
+|                    | Connection Pool    | SQLAlchemy Pool    | Built-in       |
 | **Algorithm**      | Solver             | Google OR-Tools    | 9.7+           |
 |                    | CSV Parsing        | pandas             | 2.0+           |
 |                    | JSON Output        | Python json        | Built-in       |
@@ -343,6 +377,9 @@ for j in range(num_stations):
 api_server.py
   ├── FastAPI (Web Framework)
   ├── Pydantic (Validation)
+  ├── SQLAlchemy (Database ORM)
+  ├── JWT (Authentication)
+  ├── Redis (Caching)
   ├── subprocess (Algorithm Invocation)
   └── dashboard.html (Static File Serving)
 
@@ -350,7 +387,81 @@ sche-algo.py
   ├── ortools (Optimization Solver)
   ├── pandas (CSV I/O)
   └── argparse (CLI Parsing)
+
+database/
+  ├── PostgreSQL (Primary Storage)
+  ├── Redis (Session & Cache)
+  └── Alembic (Schema Migrations)
 ```
+
+### New Database Dependencies
+
+```python
+# requirements.txt additions for Phase 1 database integration
+psycopg2-binary>=2.9.7    # PostgreSQL adapter
+redis>=5.0.0              # Redis client
+sqlalchemy>=2.0.0         # ORM
+alembic>=1.12.0           # Database migrations
+pyjwt>=2.8.0              # JWT authentication
+passlib>=1.7.4            # Password hashing
+python-multipart>=0.0.6   # File upload support
+```
+
+---
+
+## Database Integration & API Design
+
+### Core Database Schema (Phase 1)
+
+The Phase 1 database schema supports multi-tenant manufacturing data with the following core entities:
+
+```sql
+-- Multi-tenant organization structure
+organizations (id, name, slug, created_at)
+  └── sites (id, organization_id, name, location)
+      └── users (id, organization_id, email, role, site_access[])
+      └── work_orders (id, site_id, work_order_id, product_sku, status)
+          └── tasks (id, work_order_id, task_id, duration_ms, action_type)
+          └── optimizations (id, work_order_id, solver_status, total_stations)
+              └── stations (id, optimization_id, station_id, total_load_ms)
+                  └── task_assignments (id, station_id, task_id, sequence_order)
+```
+
+### Key API Endpoints (Phase 1)
+
+```yaml
+# Authentication
+POST /auth/login                    # User authentication with JWT
+POST /auth/refresh                  # Token refresh
+
+# Work Order Management
+POST /api/v1/work-orders            # Create work order
+POST /api/v1/work-orders/{id}/tasks/bulk  # Upload CSV task data
+
+# Optimization
+POST /api/v1/optimizations          # Execute line balancing
+GET  /api/v1/optimizations/{id}     # Get optimization results
+GET  /api/v1/optimizations/{id}/workstations  # Get station details
+GET  /api/v1/optimizations/{id}/takt-summary  # Get KPI summary
+```
+
+### Data Input Schema Support
+
+Phase 1 supports progressive CSV schema evolution:
+
+| Schema Version | Columns | Support |
+|----------------|---------|---------|
+| **Phase 1 Basic** | task_id, duration, predecessors | ✅ Full |
+| **Phase 1.5 Extended** | +offline_flag, adjustable, action_type | ✅ Full |
+| **Phase 1.5 Complete** | +complexity_level, part_id | ✅ Full |
+
+### Database Performance Features
+
+- **Connection Pooling**: SQLAlchemy with 20 connection pool size
+- **Query Optimization**: Strategic indexing for optimization lookups
+- **Caching Layer**: Redis for 1-hour TTL on optimization results  
+- **Multi-tenant Isolation**: Row Level Security (RLS) policies
+- **Migration Support**: Alembic for schema versioning
 
 ---
 
