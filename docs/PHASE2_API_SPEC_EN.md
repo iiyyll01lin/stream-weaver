@@ -17,6 +17,7 @@
   - [Fishbone Diagram Generation](#3-fishbone-diagram-generation)
   - [Layout Management](#4-layout-management)
   - [Product Configuration](#5-product-configuration)
+  - [Cross-Line Task Benchmark](#6-cross-line-task-benchmark)
 - [Data Models](#data-models)
 - [Error Handling](#error-handling)
 - [Usage Examples](#usage-examples)
@@ -161,14 +162,58 @@ Recommend optimal line configuration based on workload analysis.
 
 **Query Parameters**:
 ```
-GET /recommend-line-type?work_order_id=WO_A&target_takt=30000
+GET /recommend-line-type?work_order_id=WO_A&target_takt=30000&daily_demand=100
 ```
 
-| Parameter               | Type    | Required | Description                       |
-|-------------------------|---------|----------|-----------------------------------|
-| `work_order_id`         | string  | Yes      | Work order ID                     |
-| `target_takt`           | integer | Yes      | Target takt time (ms)             |
-| `max_workers_available` | integer | No       | Available workforce (default: 10) |
+| Parameter               | Type    | Required | Description                                                        |
+|-------------------------|---------|----------|--------------------------------------------------------------------|
+| `work_order_id`         | string  | Yes      | Work order ID                                                      |
+| `target_takt`           | integer | Yes      | Target takt time (ms)                                              |
+| `max_workers_available` | integer | No       | Available workforce (default: 10)                                  |
+| `optimization_goal`     | string  | No       | `min_stations`, `min_manpower`, `min_idle` (default: `min_stations`) |
+| `daily_demand`          | integer | No       | Daily production demand (units/day). High demand favors long_line  |
+| `product_mix_count`     | integer | No       | Number of product variants (SKUs). High mix favors cell            |
+| `changeover_time_ms`    | integer | No       | Product changeover time (ms). High changeover favors cell          |
+| `equipment_available`   | array   | No       | List of available equipment IDs (e.g., `["conveyor", "agv", "auto_screwdriver"]`) |
+| `product_family`        | string  | No       | Product family code for historical accuracy lookup (e.g., `"DL360"`, `"ML350"`) |
+
+**Input Parameter Details**:
+- `optimization_goal`: Different goals favor different line types:
+  - `min_stations` → Favors cells or short lines
+  - `min_manpower` → Favors long lines with specialized workers
+  - `min_idle` → Favors short lines with balanced workload
+- `daily_demand`: Critical for capacity planning:
+  - Low demand (<50/day) → Cell recommended
+  - Medium demand (50-200/day) → Short line recommended
+  - High demand (>200/day) → Long line recommended
+- `product_mix_count`: Indicates production flexibility needs:
+  - High-mix (>10 variants) → Cell for quick changeovers
+  - Low-mix (1-3 variants) → Long line for efficiency
+- `available_space_sqm`: Physical space constraint validation:
+  - Cell: ~20-50 m² per station
+  - Short line: ~150-400 m² total
+  - Long line: ~500+ m² required
+- `multi_skill_worker_count`: Skill availability check:
+  - Cell requires workers who can perform all tasks
+  - Long line allows single-skill specialists
+- `quality_target_dppm`: Quality-driven decision:
+  - < 100 DPPM → Fewer handoffs preferred (cell)
+  - > 500 DPPM → Long line acceptable
+- `demand_variability_pct`: Flexibility requirement:
+  - > 30% variability → Cell for demand swings
+  - < 10% variability → Long line efficiency OK
+- `is_new_product`: Learning curve consideration:
+  - NPI phase → Cell for rapid iteration/debugging
+  - Mature product → Long line for efficiency
+- `equipment_available`: Equipment constraint validation:
+  - Cell: Requires flexible tooling, multi-purpose fixtures
+  - Short line: Requires dedicated fixtures, conveyors
+  - Long line: Requires automated stations, AGVs, specialized equipment
+  - Missing equipment → Line type marked as infeasible
+- `product_family`: Historical accuracy lookup:
+  - Used to query past recommendations for similar products
+  - Enables learning from override patterns
+  - Example: `"DL360"` → retrieves DL360 G10/G11 recommendation history
 
 **Response (200 OK)**:
 ```json
@@ -180,43 +225,933 @@ GET /recommend-line-type?work_order_id=WO_A&target_takt=30000
     "task_count": 35,
     "total_work_ms": 156000,
     "target_takt_ms": 30000,
+    "theoretical_min_stations": 6,
+    "recommended_stations": 6,
     "complexity_distribution": {
       "simple": 20,
       "medium": 10,
       "complex": 5
     },
-    "min_theoretical_stations": 5.2,
-    "recommended_stations": 6
+    "decision_factors": [
+      "Task count (35) fits short_line range (20-50)",
+      "Theoretical 6 stations within short_line definition (4-8)",
+      "Medium complexity dominates - dedicated workers efficient",
+      "Daily demand (120) matches short_line capacity"
+    ]
   },
   "alternatives": [
     {
       "type": "cell",
+      "feasible": false,
       "suitability": 0.3,
-      "reason": "Task count too high for cell configuration"
+      "reason": "Would require 6 stations; exceeds cell max (3)",
+      "estimated_workers": null,
+      "estimated_efficiency": null
     },
     {
       "type": "short_line",
+      "feasible": true,
       "suitability": 0.85,
-      "reason": "Optimal for 6 stations, moderate complexity"
+      "reason": "Optimal fit for workload and demand",
+      "estimated_workers": 6,
+      "estimated_efficiency": 0.82
     },
     {
       "type": "long_line",
+      "feasible": true,
       "suitability": 0.55,
-      "reason": "Overkill for current workload"
+      "reason": "Possible but underutilized for current demand",
+      "estimated_workers": 9,
+      "estimated_efficiency": 0.58
     }
+  ],
+  "manpower_estimates": {
+    "cell": null,
+    "short_line": 6,
+    "long_line": 9
+  },
+  "warnings": [
+    "5 complex tasks may create bottleneck at single station",
+    "Consider splitting task 9 (GPU mount) if takt is tight"
   ],
   "recommendations": [
     "Use short line with 6 stations",
     "Consider offline processing for 3 glue tasks",
     "Group similar screw operations to reduce transitions"
-  ]
+  ],
+  "cost_analysis": {
+    "cell": {
+      "cost_per_unit": 12.50,
+      "labor_cost": 10.00,
+      "overhead_cost": 2.50,
+      "annual_operating_cost": 456000
+    },
+    "short_line": {
+      "cost_per_unit": 9.80,
+      "labor_cost": 7.50,
+      "overhead_cost": 2.30,
+      "annual_operating_cost": 520000
+    },
+    "long_line": {
+      "cost_per_unit": 8.20,
+      "labor_cost": 5.80,
+      "overhead_cost": 2.40,
+      "annual_operating_cost": 680000
+    }
+  },
+  "implementation": {
+    "cell": {
+      "setup_days": 1,
+      "training_days": 0.5,
+      "equipment_ready": true,
+      "space_required_sqm": 45
+    },
+    "short_line": {
+      "setup_days": 3,
+      "training_days": 1,
+      "equipment_ready": true,
+      "space_required_sqm": 180
+    },
+    "long_line": {
+      "setup_days": 7,
+      "training_days": 2,
+      "equipment_ready": false,
+      "space_required_sqm": 520
+    }
+  },
+  "risk_assessment": {
+    "cell": {
+      "bottleneck_risk": "low",
+      "single_point_failure": "low",
+      "quality_risk": "low",
+      "flexibility_score": 0.95
+    },
+    "short_line": {
+      "bottleneck_risk": "medium",
+      "single_point_failure": "medium",
+      "quality_risk": "medium",
+      "flexibility_score": 0.70
+    },
+    "long_line": {
+      "bottleneck_risk": "high",
+      "single_point_failure": "high",
+      "quality_risk": "medium",
+      "flexibility_score": 0.40
+    }
+  },
+  "constraints_check": {
+    "space_sufficient": {
+      "cell": true,
+      "short_line": true,
+      "long_line": false
+    },
+    "workers_qualified": {
+      "cell": false,
+      "short_line": true,
+      "long_line": true
+    },
+    "quality_achievable": {
+      "cell": true,
+      "short_line": true,
+      "long_line": false
+    },
+    "equipment_available": {
+      "cell": true,
+      "short_line": true,
+      "long_line": false
+    }
+  },
+  "equipment_check": {
+    "cell": {
+      "feasible": true,
+      "required_equipment": ["flexible_tooling"],
+      "missing_equipment": []
+    },
+    "short_line": {
+      "feasible": true,
+      "required_equipment": ["conveyor", "dedicated_fixture"],
+      "missing_equipment": []
+    },
+    "long_line": {
+      "feasible": false,
+      "required_equipment": ["conveyor", "agv", "automated_station"],
+      "missing_equipment": ["agv", "automated_station"]
+    }
+  },
+  "scenario_comparison": {
+    "current_demand": {
+      "best_type": "short_line",
+      "efficiency": 0.82
+    },
+    "peak_demand_150pct": {
+      "best_type": "long_line",
+      "efficiency": 0.78
+    },
+    "low_demand_50pct": {
+      "best_type": "cell",
+      "efficiency": 0.75
+    }
+  }
 }
 ```
 
 **Line Type Definitions**:
-- **cell**: 1-3 stations, low task count (<20), flexible workers
-- **short_line**: 4-8 stations, medium task count (20-50), dedicated workers
-- **long_line**: 9+ stations, high task count (>50), specialized stations
+
+| Line Type    | Station Count | Task Count | Worker Type  | Daily Demand | Key Characteristics                                      |
+|--------------|---------------|------------|--------------|--------------|----------------------------------------------------------|
+| `cell`       | 1 - 3         | < 20       | Flexible     | < 50/day     | High flexibility; suitable for low-volume, high-mix      |
+| `short_line` | 4 - 8         | 20 - 50    | Dedicated    | 50-200/day   | Balanced efficiency; standardized task sets              |
+| `long_line`  | 9+            | > 50       | Specialized  | > 200/day    | High specialization; maximizes output, minimizes idle    |
+
+**Response Field Descriptions**:
+
+| Field                           | Type    | Description                                                        |
+|---------------------------------|---------|--------------------------------------------------------------------|
+| `recommended_type`              | string  | `cell`, `short_line`, or `long_line`                               |
+| `confidence`                    | float   | 0-1 score indicating recommendation certainty                     |
+| `reasoning.theoretical_min_stations` | integer | `ceil(total_work_ms / target_takt_ms)`                      |
+| `reasoning.decision_factors`    | array   | Human-readable explanations for the recommendation                 |
+| `alternatives[].feasible`       | boolean | Whether this line type is feasible for the workload                |
+| `alternatives[].estimated_workers` | integer | Estimated workforce required for this line type                 |
+| `alternatives[].estimated_efficiency` | float | Predicted line efficiency (0-1)                               |
+| `manpower_estimates`            | object  | Quick lookup of worker count per line type                         |
+| `warnings`                      | array   | Potential issues or risks with the recommendation                  |
+| `cost_analysis`                 | object  | Operating cost breakdown per line type (NEW)                       |
+| `cost_analysis[type].cost_per_unit` | float | Estimated cost per unit produced                              |
+| `cost_analysis[type].annual_operating_cost` | float | Projected annual operating cost                      |
+| `implementation`                | object  | Setup effort per line type (NEW)                                   |
+| `implementation[type].setup_days` | integer | Days to set up and configure the line                           |
+| `implementation[type].training_days` | float | Days required for worker training                             |
+| `implementation[type].space_required_sqm` | float | Floor space required (m²)                               |
+| `risk_assessment`               | object  | Risk analysis per line type (NEW)                                  |
+| `risk_assessment[type].bottleneck_risk` | string | `low`, `medium`, `high`                                  |
+| `risk_assessment[type].flexibility_score` | float | 0-1 ability to handle changes                           |
+| `constraints_check`             | object  | Feasibility validation results (NEW)                               |
+| `constraints_check.space_sufficient` | object | Per-type space feasibility boolean                            |
+| `constraints_check.workers_qualified` | object | Per-type skill availability boolean                          |
+| `constraints_check.quality_achievable` | object | Per-type quality target feasibility boolean                 |
+| `constraints_check.equipment_available` | object | Per-type equipment feasibility boolean (NEW)            |
+| `equipment_check`               | object  | Detailed equipment validation per line type (NEW)                  |
+| `equipment_check[type].feasible` | boolean | Whether required equipment is available                          |
+| `equipment_check[type].required_equipment` | array | List of required equipment for this line type           |
+| `equipment_check[type].missing_equipment` | array | List of required equipment that is not available         |
+| `scenario_comparison`           | object  | What-if analysis for demand scenarios (NEW)                        |
+| `confidence_interval`           | object  | Statistical confidence range (NEW)                                 |
+| `confidence_interval.low`       | float   | Lower bound of confidence (e.g., 0.78)                             |
+| `confidence_interval.high`      | float   | Upper bound of confidence (e.g., 0.92)                             |
+| `confidence_interval.sample_size` | integer | Number of similar past recommendations used                     |
+| `historical_accuracy`           | object  | Learning from past recommendations (NEW)                           |
+| `historical_accuracy.product_family` | string | Product family used for lookup                              |
+| `historical_accuracy.past_recommendations` | integer | Number of historical recommendations found           |
+| `historical_accuracy.accuracy_rate` | float | Accuracy of past recommendations (0-1)                       |
+| `historical_accuracy.common_override_reason` | string | Most frequent reason for user override             |
+
+**Confidence Score Calculation**:
+- Base score from task count / station count alignment
+- Adjusted by complexity distribution match
+- Penalized if constraints are borderline (e.g., 19 tasks for cell)
+- Range: 0.0 (uncertain) to 1.0 (highly confident)
+
+---
+
+### 2.1 Line Type Recommendation Feedback (NEW)
+
+#### `POST /recommend-line-type/feedback`
+
+Record user decision on line type recommendation for continuous learning.
+
+**Request Body**:
+```json
+{
+  "recommendation_id": "rec_20251212_WO_A_001",
+  "work_order_id": "WO_A",
+  "recommended_type": "short_line",
+  "user_decision": "overridden",
+  "actual_type": "cell",
+  "override_reason": "space_constraint",
+  "comments": "Factory floor space limited, cell fits better",
+  "user_id": "engineer_001"
+}
+```
+
+**Parameters**:
+
+| Field               | Type   | Required | Description                                                            |
+|---------------------|--------|----------|------------------------------------------------------------------------|
+| `recommendation_id` | string | Yes      | Unique ID from recommendation response                                 |
+| `work_order_id`     | string | Yes      | Work order ID                                                          |
+| `recommended_type`  | string | Yes      | Original recommendation (`cell`, `short_line`, `long_line`)            |
+| `user_decision`     | string | Yes      | `accepted` or `overridden`                                             |
+| `actual_type`       | string | No*      | Actual line type used (required if `overridden`)                       |
+| `override_reason`   | string | No*      | Reason category (required if `overridden`)                             |
+| `comments`          | string | No       | Free-text explanation                                                  |
+| `user_id`           | string | No       | User who made the decision                                             |
+
+**Override Reason Categories**:
+- `space_constraint` - Physical space limitation
+- `worker_availability` - Insufficient skilled workers
+- `equipment_unavailable` - Required equipment not available
+- `quality_requirement` - Stricter quality target than analyzed
+- `demand_change` - Demand forecast changed
+- `cost_constraint` - Budget limitations
+- `management_decision` - Strategic/policy override
+- `other` - Other reason (specify in comments)
+
+**Response (200 OK)**:
+```json
+{
+  "feedback_id": "fb_20251212_001",
+  "recommendation_id": "rec_20251212_WO_A_001",
+  "status": "recorded",
+  "accuracy_impact": {
+    "previous_accuracy": 0.82,
+    "updated_accuracy": 0.80,
+    "total_recommendations": 16
+  },
+  "message": "Feedback recorded. Thank you for helping improve recommendations."
+}
+```
+
+**Response (400 Bad Request)**:
+```json
+{
+  "detail": "actual_type required when user_decision is 'overridden'",
+  "error_code": "MISSING_REQUIRED_FIELD"
+}
+```
+
+---
+
+#### `GET /recommend-line-type/history`
+
+Retrieve historical recommendations and their outcomes.
+
+**Query Parameters**:
+```
+GET /recommend-line-type/history?product_family=DL360&limit=50
+```
+
+| Parameter        | Type    | Required | Description                              |
+|------------------|---------|----------|------------------------------------------|
+| `product_family` | string  | No       | Filter by product family                 |
+| `work_order_id`  | string  | No       | Filter by work order                     |
+| `from_date`      | date    | No       | Start date (YYYY-MM-DD)                  |
+| `to_date`        | date    | No       | End date (YYYY-MM-DD)                    |
+| `decision`       | string  | No       | Filter by decision: `accepted`, `overridden` |
+| `limit`          | integer | No       | Max results (default: 50)                |
+
+**Response (200 OK)**:
+```json
+{
+  "total_count": 45,
+  "recommendations": [
+    {
+      "recommendation_id": "rec_20251212_WO_A_001",
+      "work_order_id": "WO_A",
+      "product_family": "DL360",
+      "recommended_type": "short_line",
+      "confidence": 0.85,
+      "user_decision": "accepted",
+      "actual_type": "short_line",
+      "created_at": "2025-12-12T10:30:00Z",
+      "decided_at": "2025-12-12T14:00:00Z"
+    }
+  ],
+  "summary": {
+    "acceptance_rate": 0.82,
+    "top_override_reasons": [
+      {"reason": "space_constraint", "count": 5},
+      {"reason": "worker_availability", "count": 3}
+    ]
+  }
+}
+```
+
+---
+
+### 2.5 Batch Recommendation (Optional Enhancement)
+
+#### `POST /recommend-line-type/batch`
+
+Generate recommendations for multiple work orders simultaneously.
+
+**Request Body**:
+```json
+{
+  "work_order_ids": ["WO_A", "WO_B", "WO_C"],
+  "common_params": {
+    "site_id": "TPE_SITE_01",
+    "product_family": "DL360"
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `work_order_ids` | array | Yes | List of work order IDs to process |
+| `common_params` | object | No | Common parameters applied to all requests |
+| `common_params.site_id` | string | No | Site ID for site-specific thresholds |
+| `common_params.product_family` | string | No | Product family for historical context |
+
+**Response (200 OK)**:
+```json
+{
+  "results": [
+    {
+      "work_order_id": "WO_A",
+      "recommended_type": "cell",
+      "confidence_score": 0.88,
+      "processing_time_ms": 45
+    },
+    {
+      "work_order_id": "WO_B",
+      "recommended_type": "short_line",
+      "confidence_score": 0.76,
+      "processing_time_ms": 52
+    },
+    {
+      "work_order_id": "WO_C",
+      "error": "Work order not found",
+      "status": "failed"
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "succeeded": 2,
+    "failed": 1,
+    "total_processing_time_ms": 150
+  },
+  "cached_count": 1
+}
+```
+
+---
+
+### 2.6 Export Recommendation Report (Optional Enhancement)
+
+#### `GET /recommend-line-type/export`
+
+Export recommendation report in PDF or Excel format.
+
+**Query Parameters**:
+```
+GET /recommend-line-type/export?work_order_id=WO_A&format=pdf&include_charts=true
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `work_order_id` | string | Yes | Work order ID |
+| `format` | string | No | Export format: `pdf` or `xlsx` (default: `pdf`) |
+| `include_charts` | boolean | No | Include comparison charts (default: `true`) |
+| `language` | string | No | Report language: `en` or `zh` (default: `en`) |
+
+**Response (200 OK)**:
+```http
+Content-Type: application/pdf  (or application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
+Content-Disposition: attachment; filename="recommendation_WO_A_20240115.pdf"
+
+[Binary file content]
+```
+
+**Report Contents**:
+| Section | Description |
+|---------|-------------|
+| Executive Summary | Recommended line type with confidence score |
+| Input Parameters | All 14 input parameters used |
+| Comparison Matrix | Score breakdown for all line types |
+| Cost Analysis | Per-line-type cost breakdown with charts |
+| Risk Assessment | Risk scores visualization |
+| Constraints Check | Pass/fail status with details |
+| Historical Context | Accuracy metrics for product family |
+| Appendix | Data sources and methodology |
+
+---
+
+### 2.7 Configurable Thresholds API (Optional Enhancement)
+
+#### `GET /recommend-line-type/thresholds`
+
+Retrieve current scoring thresholds.
+
+**Query Parameters**:
+```
+GET /recommend-line-type/thresholds?site_id=TPE_SITE_01
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `site_id` | string | No | Site ID for site-specific thresholds |
+| `product_family` | string | No | Product family for specific thresholds |
+
+**Response (200 OK)**:
+```json
+{
+  "site_id": "TPE_SITE_01",
+  "product_family": null,
+  "thresholds": {
+    "task_count": {
+      "cell_max": 20,
+      "short_line_min": 15,
+      "short_line_max": 50,
+      "long_line_min": 40
+    },
+    "daily_demand": {
+      "low_max": 50,
+      "medium_max": 200
+    },
+    "quality_level": {
+      "premium_threshold": 0.9,
+      "standard_threshold": 0.7
+    },
+    "cost_weights": {
+      "labor_factor": 0.4,
+      "equipment_factor": 0.35,
+      "space_factor": 0.15,
+      "transition_factor": 0.1
+    }
+  },
+  "source": "site_config",
+  "last_updated": "2024-01-15T10:30:00Z",
+  "updated_by": "admin@example.com"
+}
+```
+
+#### `PUT /recommend-line-type/thresholds`
+
+Update scoring thresholds for a site or product family.
+
+**Request Body**:
+```json
+{
+  "site_id": "TPE_SITE_01",
+  "product_family": "DL360",
+  "thresholds": {
+    "task_count": {
+      "cell_max": 25,
+      "short_line_min": 20,
+      "short_line_max": 60,
+      "long_line_min": 45
+    },
+    "daily_demand": {
+      "low_max": 60,
+      "medium_max": 250
+    },
+    "quality_level": {
+      "premium_threshold": 0.95,
+      "standard_threshold": 0.8
+    }
+  },
+  "reason": "Adjusted for new DL360 G11 product launch"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `site_id` | string | Yes | Target site ID |
+| `product_family` | string | No | Target product family (null = site-wide) |
+| `thresholds` | object | Yes | Threshold configuration object |
+| `reason` | string | No | Change reason for audit trail |
+
+**Response (200 OK)**:
+```json
+{
+  "status": "updated",
+  "site_id": "TPE_SITE_01",
+  "product_family": "DL360",
+  "effective_from": "2024-01-15T10:35:00Z",
+  "previous_version_id": "thresh_v12",
+  "new_version_id": "thresh_v13"
+}
+```
+
+#### `DELETE /recommend-line-type/thresholds`
+
+Reset thresholds to default values.
+
+**Query Parameters**:
+```
+DELETE /recommend-line-type/thresholds?site_id=TPE_SITE_01&product_family=DL360
+```
+
+**Response (200 OK)**:
+```json
+{
+  "status": "reset_to_default",
+  "site_id": "TPE_SITE_01",
+  "product_family": "DL360"
+}
+```
+
+---
+
+### 2.8 A/B Testing Framework (Optional Enhancement)
+
+Enable algorithm variation testing in production for continuous improvement.
+
+#### `GET /recommend-line-type/experiments`
+
+List active and completed A/B experiments.
+
+**Query Parameters**:
+```
+GET /recommend-line-type/experiments?status=active
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter: `active`, `completed`, `paused` (default: all) |
+
+**Response (200 OK)**:
+```json
+{
+  "experiments": [
+    {
+      "experiment_id": "exp_algo_v2_2024",
+      "name": "Enhanced Scoring Algorithm v2",
+      "status": "active",
+      "start_date": "2024-01-01T00:00:00Z",
+      "end_date": null,
+      "variants": [
+        {
+          "variant_id": "control",
+          "name": "Current Algorithm (v1.0)",
+          "traffic_percent": 50,
+          "description": "Baseline multi-factor scoring"
+        },
+        {
+          "variant_id": "treatment_a",
+          "name": "ML-Enhanced Scoring (v2.0)",
+          "traffic_percent": 50,
+          "description": "Machine learning weight optimization"
+        }
+      ],
+      "metrics": {
+        "primary": "acceptance_rate",
+        "secondary": ["confidence_accuracy", "override_rate", "user_satisfaction"]
+      },
+      "current_results": {
+        "control": {
+          "sample_size": 1250,
+          "acceptance_rate": 0.78,
+          "avg_confidence": 0.82
+        },
+        "treatment_a": {
+          "sample_size": 1248,
+          "acceptance_rate": 0.85,
+          "avg_confidence": 0.88
+        }
+      },
+      "statistical_significance": {
+        "p_value": 0.023,
+        "is_significant": true,
+        "confidence_level": 0.95
+      }
+    }
+  ],
+  "total": 1
+}
+```
+
+#### `POST /recommend-line-type/experiments`
+
+Create a new A/B experiment.
+
+**Request Body**:
+```json
+{
+  "name": "Cost Weight Optimization",
+  "description": "Test different cost factor weights",
+  "variants": [
+    {
+      "variant_id": "control",
+      "name": "Current Weights",
+      "traffic_percent": 50,
+      "config": {
+        "cost_weights": {
+          "labor_factor": 0.4,
+          "equipment_factor": 0.35
+        }
+      }
+    },
+    {
+      "variant_id": "treatment_a",
+      "name": "Labor-Heavy Weights",
+      "traffic_percent": 50,
+      "config": {
+        "cost_weights": {
+          "labor_factor": 0.55,
+          "equipment_factor": 0.25
+        }
+      }
+    }
+  ],
+  "target_sample_size": 2000,
+  "metrics": {
+    "primary": "acceptance_rate",
+    "secondary": ["user_satisfaction"]
+  },
+  "targeting": {
+    "site_ids": ["TPE_SITE_01", "TPE_SITE_02"],
+    "product_families": null
+  }
+}
+```
+
+**Response (201 Created)**:
+```json
+{
+  "experiment_id": "exp_cost_2024_q1",
+  "status": "active",
+  "created_at": "2024-01-15T10:00:00Z",
+  "estimated_completion": "2024-02-15T10:00:00Z"
+}
+```
+
+#### `PUT /recommend-line-type/experiments/{experiment_id}`
+
+Update experiment status (pause, resume, conclude).
+
+**Request Body**:
+```json
+{
+  "action": "conclude",
+  "winner_variant": "treatment_a",
+  "apply_winner": true,
+  "notes": "Treatment A showed 9% improvement in acceptance rate"
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "experiment_id": "exp_algo_v2_2024",
+  "status": "completed",
+  "concluded_at": "2024-01-15T15:00:00Z",
+  "winner": "treatment_a",
+  "applied_to_production": true,
+  "final_results": {
+    "control": {
+      "sample_size": 1250,
+      "acceptance_rate": 0.78
+    },
+    "treatment_a": {
+      "sample_size": 1248,
+      "acceptance_rate": 0.85,
+      "improvement": "+8.97%"
+    }
+  }
+}
+```
+
+---
+
+### 2.9 Recommendation Explanation NLP (Optional Enhancement - Phase 3 Prep)
+
+Generate natural language explanations for recommendations.
+
+#### `GET /recommend-line-type/explain`
+
+Get human-readable explanation for a recommendation.
+
+**Query Parameters**:
+```
+GET /recommend-line-type/explain?work_order_id=WO_A&language=en&detail_level=standard
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `work_order_id` | string | Yes | Work order ID |
+| `language` | string | No | `en` or `zh` (default: `en`) |
+| `detail_level` | string | No | `brief`, `standard`, `detailed` (default: `standard`) |
+| `audience` | string | No | `operator`, `engineer`, `manager` (default: `engineer`) |
+
+**Response (200 OK)**:
+```json
+{
+  "work_order_id": "WO_A",
+  "recommendation": {
+    "type": "cell",
+    "confidence": 0.88
+  },
+  "explanation": {
+    "summary": "Based on your work order analysis, we recommend a **Cell Production** layout with 88% confidence.",
+    "key_factors": [
+      {
+        "factor": "Task Count",
+        "value": 15,
+        "impact": "positive",
+        "explanation": "With only 15 tasks, a cell layout allows one or two skilled workers to complete the entire assembly, reducing handoff delays."
+      },
+      {
+        "factor": "Daily Demand",
+        "value": 35,
+        "impact": "positive",
+        "explanation": "Low daily demand (35 units) doesn't justify the overhead of a longer production line."
+      },
+      {
+        "factor": "Product Mix",
+        "value": 8,
+        "impact": "strong_positive",
+        "explanation": "With 8 product variants, cell production provides the flexibility needed for quick changeovers without reconfiguring the entire line."
+      }
+    ],
+    "alternatives_considered": [
+      {
+        "type": "short_line",
+        "score": 0.72,
+        "why_not": "A short line would require more workers (5-6) for similar output, increasing labor costs by approximately 40% without proportional efficiency gains."
+      },
+      {
+        "type": "long_line",
+        "score": 0.45,
+        "why_not": "Long line production is not recommended due to low demand volume. The line would operate at only 35% utilization, wasting equipment and floor space."
+      }
+    ],
+    "risks_mentioned": [
+      "Worker skill dependency: Ensure at least 2 cross-trained workers are available for cell operation.",
+      "Quality checkpoint: Consider adding inline inspection at the cell to maintain DPPM targets."
+    ],
+    "action_items": [
+      "Verify multi-skilled worker availability (minimum 2 required)",
+      "Allocate 40-50 m² floor space for cell setup",
+      "Prepare flexible tooling kit for 8 product variants"
+    ]
+  },
+  "generated_at": "2024-01-15T10:30:00Z",
+  "generation_model": "gpt-4-turbo",
+  "tokens_used": 450
+}
+```
+
+**Detail Level Examples**:
+
+| Level | Output Length | Use Case |
+|-------|---------------|----------|
+| `brief` | 2-3 sentences | Quick overview for operators |
+| `standard` | Full structured explanation | Engineer decision-making |
+| `detailed` | Extended with calculations | Management reports, audits |
+
+**Audience Adaptation**:
+
+| Audience | Language Style | Technical Depth |
+|----------|----------------|-----------------|
+| `operator` | Simple, action-focused | Low - what to do |
+| `engineer` | Technical, data-driven | Medium - why it works |
+| `manager` | Business-focused, ROI | High - cost/risk impact |
+
+---
+
+### 2.10 Audit Trail API (Optional Enhancement)
+
+Track complete decision history for compliance and debugging.
+
+#### `GET /recommend-line-type/audit`
+
+Retrieve audit trail for a recommendation.
+
+**Query Parameters**:
+```
+GET /recommend-line-type/audit?recommendation_id=rec_abc123
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `recommendation_id` | string | Yes* | Specific recommendation ID |
+| `work_order_id` | string | Yes* | Work order ID (returns all related) |
+| `from_date` | string | No | Start date filter (ISO 8601) |
+| `to_date` | string | No | End date filter (ISO 8601) |
+| `actor` | string | No | Filter by user/system |
+
+*At least one of `recommendation_id` or `work_order_id` required.
+
+**Response (200 OK)**:
+```json
+{
+  "recommendation_id": "rec_abc123",
+  "work_order_id": "WO_A",
+  "audit_trail": [
+    {
+      "event_id": "evt_001",
+      "timestamp": "2024-01-15T10:00:00Z",
+      "action": "recommendation_created",
+      "actor": "system",
+      "details": {
+        "algorithm_version": "v2.1.0",
+        "experiment_variant": "treatment_a",
+        "input_hash": "sha256:abc123..."
+      }
+    },
+    {
+      "event_id": "evt_002",
+      "timestamp": "2024-01-15T10:05:00Z",
+      "action": "recommendation_viewed",
+      "actor": "engineer@example.com",
+      "details": {
+        "client_ip": "192.168.1.100",
+        "user_agent": "Mozilla/5.0..."
+      }
+    },
+    {
+      "event_id": "evt_003",
+      "timestamp": "2024-01-15T10:10:00Z",
+      "action": "recommendation_overridden",
+      "actor": "engineer@example.com",
+      "details": {
+        "original_recommendation": "cell",
+        "override_to": "short_line",
+        "override_reason": "space_constraint",
+        "notes": "Cell area under renovation until Q2"
+      }
+    },
+    {
+      "event_id": "evt_004",
+      "timestamp": "2024-01-15T10:15:00Z",
+      "action": "recommendation_approved",
+      "actor": "supervisor@example.com",
+      "details": {
+        "approval_level": "supervisor",
+        "final_decision": "short_line"
+      }
+    },
+    {
+      "event_id": "evt_005",
+      "timestamp": "2024-01-15T10:20:00Z",
+      "action": "recommendation_applied",
+      "actor": "system",
+      "details": {
+        "line_id": "LINE_B",
+        "configuration_id": "cfg_xyz789"
+      }
+    }
+  ],
+  "input_snapshot": {
+    "captured_at": "2024-01-15T10:00:00Z",
+    "parameters": {
+      "work_order_id": "WO_A",
+      "target_takt": 60000,
+      "daily_demand": 35,
+      "product_mix_count": 8
+    }
+  },
+  "decision_factors": {
+    "scores": {
+      "cell": 0.88,
+      "short_line": 0.72,
+      "long_line": 0.45
+    },
+    "constraints_at_time": {
+      "space_constraint": {"passed": true},
+      "worker_constraint": {"passed": true}
+    },
+    "thresholds_version": "thresh_v13"
+  },
+  "compliance": {
+    "retention_policy": "7_years",
+    "data_classification": "internal",
+    "gdpr_relevant": false
+  }
+}
+```
 
 ---
 
@@ -583,6 +1518,222 @@ Delete product configuration.
 
 ---
 
+### 6. Cross-Line Task Benchmark
+
+Compare task execution times across different production lines to identify efficiency gaps and best practices.
+
+#### 6.1 `GET /benchmark/cross-line-tasks`
+
+Retrieve cross-line task time comparison report.
+
+**Query Parameters**:
+```
+GET /benchmark/cross-line-tasks?line_ids=L1,L2,L3&date_from=2025-12-01&date_to=2025-12-31
+```
+
+| Parameter   | Type   | Required | Description                                |
+|-------------|--------|----------|--------------------------------------------|
+| `line_ids`  | string | Yes      | Comma-separated line IDs to compare        |
+| `task_ids`  | string | No       | Comma-separated task IDs (optional filter) |
+| `date_from` | string | No       | Start date (ISO 8601 format)               |
+| `date_to`   | string | No       | End date (ISO 8601 format)                 |
+
+**Response (200 OK)**:
+```json
+{
+  "benchmark_id": "BM-20251202-001",
+  "generated_at": "2025-12-02T10:30:00Z",
+  "lines_compared": ["L1", "L2", "L3"],
+  "task_benchmarks": [
+    {
+      "task_id": "T001",
+      "task_name": "Install RAM",
+      "line_stats": {
+        "L1": {
+          "avg_ms": 12500,
+          "std_ms": 850,
+          "min_ms": 10200,
+          "max_ms": 15800,
+          "samples": 45
+        },
+        "L2": {
+          "avg_ms": 11800,
+          "std_ms": 720,
+          "min_ms": 9800,
+          "max_ms": 14200,
+          "samples": 52
+        },
+        "L3": {
+          "avg_ms": 13200,
+          "std_ms": 1100,
+          "min_ms": 10500,
+          "max_ms": 17000,
+          "samples": 38
+        }
+      },
+      "best_line": "L2",
+      "worst_line": "L3",
+      "variance_percent": 11.9,
+      "severity": "warning",
+      "recommendation": "L3 is 11.9% slower than best line L2. Review work instructions and tooling."
+    },
+    {
+      "task_id": "T002",
+      "task_name": "Mount CPU",
+      "line_stats": {
+        "L1": {"avg_ms": 8500, "std_ms": 620, "samples": 45},
+        "L2": {"avg_ms": 9100, "std_ms": 880, "samples": 52},
+        "L3": {"avg_ms": 8200, "std_ms": 550, "samples": 38}
+      },
+      "best_line": "L3",
+      "worst_line": "L2",
+      "variance_percent": 11.0,
+      "severity": "warning",
+      "recommendation": "L2 is 11.0% slower than best line L3. Review work instructions and tooling."
+    }
+  ],
+  "summary": {
+    "total_tasks_compared": 25,
+    "high_variance_tasks": 3,
+    "warning_variance_tasks": 5,
+    "normal_variance_tasks": 17,
+    "avg_cross_line_variance_percent": 8.5,
+    "best_overall_line": "L2",
+    "worst_overall_line": "L3",
+    "improvement_potential_percent": 12.3,
+    "improvement_potential_ms": 45600
+  }
+}
+```
+
+**Field Descriptions**:
+- `variance_percent`: Percentage difference between best and worst line for this task
+- `severity`: `normal` (<5%), `warning` (5-15%), `critical` (>15%)
+- `improvement_potential_percent`: Total efficiency gain if all lines match best practices
+- `improvement_potential_ms`: Time savings per cycle in milliseconds
+
+---
+
+#### 6.2 `POST /benchmark/cross-line-tasks/generate`
+
+Generate a new cross-line benchmark report.
+
+**Request Body**:
+```json
+{
+  "line_ids": ["L1", "L2", "L3"],
+  "task_ids": ["T001", "T002", "T003"],
+  "date_range": {
+    "from": "2025-12-01",
+    "to": "2025-12-31"
+  },
+  "include_worker_analysis": true,
+  "include_time_of_day_analysis": false,
+  "variance_threshold_warning": 10.0,
+  "variance_threshold_critical": 15.0
+}
+```
+
+**Parameters**:
+
+| Field                          | Type    | Required | Description                              |
+|--------------------------------|---------|----------|------------------------------------------|
+| `line_ids`                     | array   | Yes      | Line IDs to compare (min 2, max 10)      |
+| `task_ids`                     | array   | No       | Specific tasks to analyze (all if empty) |
+| `date_range.from`              | string  | No       | Start date for data collection           |
+| `date_range.to`                | string  | No       | End date for data collection             |
+| `include_worker_analysis`      | boolean | No       | Include per-worker breakdown             |
+| `include_time_of_day_analysis` | boolean | No       | Analyze shift performance patterns       |
+| `variance_threshold_warning`   | float   | No       | Warning threshold % (default: 10.0)      |
+| `variance_threshold_critical`  | float   | No       | Critical threshold % (default: 15.0)     |
+
+**Response (202 Accepted)**:
+```json
+{
+  "benchmark_id": "BM-20251202-002",
+  "status": "generating",
+  "estimated_completion_sec": 15,
+  "poll_url": "/benchmark/cross-line-tasks/BM-20251202-002/status"
+}
+```
+
+---
+
+#### 6.3 `GET /benchmark/cross-line-tasks/{benchmark_id}`
+
+Retrieve a specific benchmark report by ID.
+
+**Path Parameters**:
+- `benchmark_id` (string): Benchmark report ID
+
+**Response (200 OK)**:
+```json
+{
+  "benchmark_id": "BM-20251202-001",
+  "status": "completed",
+  "generated_at": "2025-12-02T10:30:00Z",
+  "lines_compared": ["L1", "L2", "L3"],
+  "task_benchmarks": [...],
+  "summary": {...},
+  "worker_analysis": {
+    "L1": {
+      "W001": {"avg_efficiency": 98.5, "tasks_completed": 125},
+      "W002": {"avg_efficiency": 95.2, "tasks_completed": 118}
+    },
+    "L2": {
+      "W005": {"avg_efficiency": 101.2, "tasks_completed": 142},
+      "W006": {"avg_efficiency": 99.8, "tasks_completed": 138}
+    }
+  }
+}
+```
+
+---
+
+#### 6.4 `GET /benchmark/cross-line-tasks/{benchmark_id}/export`
+
+Export benchmark report in various formats.
+
+**Query Parameters**:
+```
+GET /benchmark/cross-line-tasks/BM-20251202-001/export?format=csv
+```
+
+| Parameter | Type   | Required | Description                         |
+|-----------|--------|----------|-------------------------------------|
+| `format`  | string | No       | Export format: `csv`, `xlsx`, `pdf` |
+
+**Response (200 OK)**:
+```http
+Content-Type: text/csv
+Content-Disposition: attachment; filename="benchmark_BM-20251202-001.csv"
+
+task_id,task_name,L1_avg_ms,L2_avg_ms,L3_avg_ms,best_line,worst_line,variance_percent,severity
+T001,Install RAM,12500,11800,13200,L2,L3,11.9,warning
+T002,Mount CPU,8500,9100,8200,L3,L2,11.0,warning
+...
+```
+
+---
+
+#### 6.5 `DELETE /benchmark/cross-line-tasks/{benchmark_id}`
+
+Delete a benchmark report.
+
+**Path Parameters**:
+- `benchmark_id` (string): Benchmark report ID
+
+**Response (200 OK)**:
+```json
+{
+  "benchmark_id": "BM-20251202-001",
+  "status": "deleted",
+  "message": "Benchmark report deleted successfully"
+}
+```
+
+---
+
 ## Data Models
 
 ### MultiLineConfig
@@ -674,6 +1825,67 @@ class ProductConfig(BaseModel):
         return v
 ```
 
+### CrossLineBenchmark
+
+```python
+class TaskLineStats(BaseModel):
+    """Statistics for a task on a specific line"""
+    avg_ms: float = Field(ge=0)
+    std_ms: float = Field(ge=0)
+    min_ms: float = Field(ge=0)
+    max_ms: float = Field(ge=0)
+    samples: int = Field(ge=1)
+
+class TaskBenchmark(BaseModel):
+    """Benchmark data for a single task across lines"""
+    task_id: str
+    task_name: str
+    line_stats: Dict[str, TaskLineStats]
+    best_line: str
+    worst_line: str
+    variance_percent: float = Field(ge=0)
+    severity: str = Field(pattern=r'^(normal|warning|critical)$')
+    recommendation: Optional[str] = None
+
+class BenchmarkSummary(BaseModel):
+    """Summary statistics for benchmark report"""
+    total_tasks_compared: int = Field(ge=0)
+    high_variance_tasks: int = Field(ge=0)
+    warning_variance_tasks: int = Field(ge=0)
+    normal_variance_tasks: int = Field(ge=0)
+    avg_cross_line_variance_percent: float = Field(ge=0)
+    best_overall_line: str
+    worst_overall_line: str
+    improvement_potential_percent: float = Field(ge=0)
+    improvement_potential_ms: int = Field(ge=0)
+
+class CrossLineBenchmarkReport(BaseModel):
+    """Complete cross-line benchmark report"""
+    benchmark_id: str
+    generated_at: datetime
+    status: str = Field(pattern=r'^(generating|completed|failed)$')
+    lines_compared: List[str]
+    task_benchmarks: List[TaskBenchmark]
+    summary: BenchmarkSummary
+    worker_analysis: Optional[Dict[str, Dict[str, Any]]] = None
+
+class BenchmarkRequest(BaseModel):
+    """Request to generate new benchmark"""
+    line_ids: List[str] = Field(min_items=2, max_items=10)
+    task_ids: Optional[List[str]] = None
+    date_range: Optional[Dict[str, str]] = None
+    include_worker_analysis: bool = False
+    include_time_of_day_analysis: bool = False
+    variance_threshold_warning: float = Field(default=10.0, ge=1.0, le=50.0)
+    variance_threshold_critical: float = Field(default=15.0, ge=5.0, le=100.0)
+    
+    @validator('variance_threshold_critical')
+    def validate_thresholds(cls, v, values):
+        if 'variance_threshold_warning' in values and v <= values['variance_threshold_warning']:
+            raise ValueError("Critical threshold must be greater than warning threshold")
+        return v
+```
+
 ---
 
 ## Error Handling
@@ -724,6 +1936,35 @@ class ProductConfig(BaseModel):
 ```json
 {
   "detail": "Product config conflict: SKU 'DL360_G10' already exists"
+}
+```
+
+#### Cross-Line Benchmark Errors
+
+**400 Bad Request**:
+```json
+{
+  "detail": "Benchmark error: At least 2 line IDs required for comparison"
+}
+```
+
+```json
+{
+  "detail": "Benchmark error: No task data found for lines [L1, L2] in specified date range"
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "detail": "Benchmark report not found: BM-20251202-999"
+}
+```
+
+**422 Unprocessable Entity**:
+```json
+{
+  "detail": "Benchmark error: Critical threshold (10%) must be greater than warning threshold (15%)"
 }
 ```
 
@@ -872,17 +2113,94 @@ curl "http://localhost:8000/product-config?sku=DL360_G10"
 
 ---
 
+### Example 6: Generate Cross-Line Task Benchmark
+
+**Request**:
+```bash
+curl -X POST http://localhost:8000/benchmark/cross-line-tasks/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "line_ids": ["L1", "L2", "L3"],
+    "date_range": {
+      "from": "2025-12-01",
+      "to": "2025-12-31"
+    },
+    "include_worker_analysis": true,
+    "variance_threshold_warning": 10.0,
+    "variance_threshold_critical": 15.0
+  }'
+```
+
+**Response**:
+```json
+{
+  "benchmark_id": "BM-20251202-001",
+  "status": "generating",
+  "estimated_completion_sec": 15,
+  "poll_url": "/benchmark/cross-line-tasks/BM-20251202-001/status"
+}
+```
+
+---
+
+### Example 7: Query Cross-Line Benchmark Report
+
+**Request**:
+```bash
+curl "http://localhost:8000/benchmark/cross-line-tasks?line_ids=L1,L2,L3&date_from=2025-12-01"
+```
+
+**Response**:
+```json
+{
+  "benchmark_id": "BM-20251202-001",
+  "lines_compared": ["L1", "L2", "L3"],
+  "task_benchmarks": [
+    {
+      "task_id": "T001",
+      "task_name": "Install RAM",
+      "best_line": "L2",
+      "worst_line": "L3",
+      "variance_percent": 11.9,
+      "severity": "warning"
+    }
+  ],
+  "summary": {
+    "total_tasks_compared": 25,
+    "high_variance_tasks": 3,
+    "avg_cross_line_variance_percent": 8.5,
+    "best_overall_line": "L2",
+    "improvement_potential_percent": 12.3
+  }
+}
+```
+
+---
+
+### Example 8: Export Benchmark to CSV
+
+**Request**:
+```bash
+curl "http://localhost:8000/benchmark/cross-line-tasks/BM-20251202-001/export?format=csv" \
+  -o benchmark_report.csv
+```
+
+---
+
 ## Performance Requirements
 
 ### Phase 2 Targets
 
-| Metric                      | Target      | Notes                       |
-|-----------------------------|-------------|-----------------------------|
-| **Multi-Line Optimization** | < 5 seconds | 2-3 lines, ≤500 tasks total |
-| **Fishbone Generation**     | < 2 seconds | ≤100 tasks                  |
-| **Layout Save/Load**        | < 500ms     | Single layout operation     |
-| **Product Config Query**    | < 200ms     | Single SKU lookup           |
-| **Line Recommendation**     | < 1 second  | Analysis + recommendation   |
+| Metric                       | Target      | Notes                       |
+|------------------------------|-------------|-----------------------------||
+| **Multi-Line Optimization**  | < 5 seconds | 2-3 lines, ≤500 tasks total |
+| **Fishbone Generation**      | < 2 seconds | ≤100 tasks                  |
+| **Layout Save/Load**         | < 500ms     | Single layout operation     |
+| **Product Config Query**     | < 200ms     | Single SKU lookup           |
+| **Line Recommendation**      | < 1 second  | Analysis + recommendation   |
+| **Benchmark Generation**     | < 30 seconds| 3 lines, 50 tasks, 30 days  |
+| **Benchmark Query**          | < 500ms     | Cached report retrieval     |
+| **Benchmark Export (CSV)**   | < 2 seconds | Full report export          |
 
 ---
 

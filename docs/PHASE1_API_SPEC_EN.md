@@ -98,16 +98,17 @@ Submit optimization request and receive workstation allocation results.
 
 **Parameters**:
 
-| Field                     | Type    | Required | Description                                                         | Default | Phase |
-|---------------------------|---------|----------|---------------------------------------------------------------------|---------|-------|
-| `work_order_id`           | string  | Yes      | Work order ID (`WO_A`, `WO_B`, `WO_C`)                              | -       | 1     |
-| `optimization_goal`       | string  | Yes      | Optimization objective (`min_stations`, `min_manpower`, `min_idle`) | -       | 1     |
-| `target_takt`             | integer | Yes      | Target takt time (milliseconds)                                     | -       | 1     |
-| `max_workers_per_station` | integer | No       | Maximum workers per station                                         | 3       | 1     |
-| `fixed_stations`          | integer | No       | Fixed number of stations (for `min_idle`)                           | 0       | 1     |
-| `enable_offline_handling` | boolean | No       | Enable offline task separation (REQ #4, #15)                        | false   | 1.5   |
-| `enable_task_merging`     | boolean | No       | Enable adjustable task merging (REQ #13)                            | false   | 1.5   |
-| `merge_efficiency_gain`   | float   | No       | Efficiency gain from merging (0.0-0.5)                              | 0.10    | 1.5   |
+| Field                              | Type    | Required | Description                                                         | Default | Phase |
+|------------------------------------|---------|----------|---------------------------------------------------------------------|---------|-------|
+| `work_order_id`                    | string  | Yes      | Work order ID (`WO_A`, `WO_B`, `WO_C`)                              | -       | 1     |
+| `optimization_goal`                | string  | Yes      | Optimization objective (`min_stations`, `min_manpower`, `min_idle`) | -       | 1     |
+| `target_takt`                      | integer | Yes      | Target takt time (milliseconds)                                     | -       | 1     |
+| `max_workers_per_station`          | integer | No       | Maximum workers per station                                         | 3       | 1     |
+| `fixed_stations`                   | integer | No       | Fixed number of stations (for `min_idle`)                           | 0       | 1     |
+| `enable_offline_handling`          | boolean | No       | Enable offline task separation (REQ #4, #15)                        | false   | 1.5   |
+| `enable_task_merging`              | boolean | No       | Enable adjustable task merging (REQ #13)                            | false   | 1.5   |
+| `merge_efficiency_gain`            | float   | No       | Efficiency gain from merging (0.0-0.5)                              | 0.10    | 1.5   |
+| `enable_complexity_classification` | boolean | No       | Enable assembly complexity classification (REQ #10)                 | false   | 1.5   |
 
 **Field Descriptions**:
 
@@ -135,6 +136,13 @@ Submit optimization request and receive workstation allocation results.
   - Range: 0.0 (no gain) to 0.5 (50% max gain)
   - Example: Two 10s tasks merged = 18s (10% gain) instead of 20s
   - Validation: Must be in [0.0, 0.5]
+
+- `enable_complexity_classification`: When true, tasks with `complexity_level` column:
+  - Auto-classify missing complexity based on `part_id` keywords
+  - Balance complexity scores across stations
+  - Generate complexity distribution KPIs
+  - **Use case**: Operator skill assignment, training planning, quality risk management
+  - **Complexity levels**: simple (weight=1), medium (weight=2), complex (weight=4), super_complex (weight=8)
 
 **Optimization Objectives**:
 
@@ -383,6 +391,11 @@ class StationInfo(BaseModel):
     merged_task_pairs: List[List[int]] = []   # Merged pairs e.g., [[1,3], [5,7]]
     online_load_ms: int = 0                   # Load from online tasks
     offline_load_ms: int = 0                  # Load from offline tasks
+    
+    # Phase 1.5 Part Tracking (NEW)
+    parts_involved: List[PartOperation] = []     # Parts at this station
+    part_operations: Dict[str, List[str]] = {}   # part_id → [actions]
+    complexity_max: str = "simple"               # Highest complexity level
 ```
 
 ### OptimizeResponse
@@ -410,6 +423,11 @@ class OptimizeResponse(BaseModel):
     offline_total_time_ms: int = 0        # Total offline task time
     merged_tasks_count: int = 0           # Number of merged task pairs
     merge_efficiency_gain_pct: float = 0.0  # Actual efficiency gain achieved
+    
+    # Phase 1.5 Part Tracking (NEW)
+    part_flow_summary: Dict[str, List[int]] = {}  # part_id → [station_indices]
+    part_count: int = 0                           # Total unique parts
+    complexity_distribution: Dict[str, int] = {}  # complexity → count
 ```
 
 ### WorkstationSummary
@@ -553,12 +571,12 @@ curl -X POST http://localhost:8000/optimize \
 
 ### Example 4: Query Workstation Status
 
-**Request**:
+**Request:**
 ```bash
 curl "http://localhost:8000/workstations?work_order_id=WO_A&target_takt=30000"
 ```
 
-**Response**:
+**Response:**
 ```json
 [
   {
@@ -570,6 +588,296 @@ curl "http://localhost:8000/workstations?work_order_id=WO_A&target_takt=30000"
   }
 ]
 ```
+
+---
+
+### Example 4B: Optimization with Part Tracking (Phase 1.5)
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/optimize" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "work_order_id": "WO_A",
+    "optimization_goal": "min_stations",
+    "target_takt": 30000,
+    "max_workers_per_station": 2,
+    "enable_part_tracking": true
+  }'
+```
+
+**Response (Extended with Part Data):**
+```json
+{
+  "work_order_id": "WO_A",
+  "optimization_goal": "min_stations",
+  "takt_time_ms": 28500,
+  "line_count": 3,
+  "manpower_total": 3,
+  "utilization_avg": 95.0,
+  "solve_time_sec": 1.23,
+  
+  "stations": [
+    {
+      "id": "WS-001",
+      "total_time_ms": 28500,
+      "utilization_pct": 95.0,
+      "workers": 1,
+      "assigned_tasks": [1, 2, 3],
+      
+      "parts_involved": [
+        {
+          "part_id": "SCREW_M3",
+          "actions": ["screw"],
+          "task_ids": [1],
+          "complexity": "simple"
+        },
+        {
+          "part_id": "GPU_GTX3080",
+          "actions": ["install"],
+          "task_ids": [2],
+          "complexity": "complex"
+        },
+        {
+          "part_id": "THERMAL_PAD",
+          "actions": ["apply"],
+          "task_ids": [3],
+          "complexity": "medium"
+        }
+      ],
+      
+      "part_operations": {
+        "SCREW_M3": ["screw"],
+        "GPU_GTX3080": ["install"],
+        "THERMAL_PAD": ["apply"]
+      },
+      
+      "complexity_max": "complex"
+    },
+    {
+      "id": "WS-002",
+      "total_time_ms": 27800,
+      "utilization_pct": 92.7,
+      "workers": 1,
+      "assigned_tasks": [4, 5],
+      
+      "parts_involved": [
+        {
+          "part_id": "GPU_GTX3080",
+          "actions": ["test"],
+          "task_ids": [4],
+          "complexity": "complex"
+        },
+        {
+          "part_id": "CABLE_BUNDLE",
+          "actions": ["route", "connect"],
+          "task_ids": [5],
+          "complexity": "medium"
+        }
+      ],
+      
+      "part_operations": {
+        "GPU_GTX3080": ["test"],
+        "CABLE_BUNDLE": ["route", "connect"]
+      },
+      
+      "complexity_max": "complex"
+    }
+  ],
+  
+  "part_flow_summary": {
+    "SCREW_M3": [0],
+    "GPU_GTX3080": [0, 1],
+    "THERMAL_PAD": [0],
+    "CABLE_BUNDLE": [1]
+  },
+  
+  "part_count": 4,
+  
+  "complexity_distribution": {
+    "simple": 1,
+    "medium": 2,
+    "complex": 2
+  }
+}
+```
+
+**Use Cases for Part Tracking Data:**
+
+1. **Line-Side Inventory Planning:**
+   - Use `stations[].parts_involved` to generate pick lists for each station
+   - Example: Station WS-001 needs SCREW_M3, GPU_GTX3080, THERMAL_PAD
+
+2. **BOM Verification:**
+   - Compare `part_flow_summary` keys with BOM to ensure all parts are assigned
+   - `part_count` should match BOM item count
+
+3. **Material Flow Optimization:**
+   - Analyze `part_flow_summary` to identify parts that traverse multiple stations
+   - Example: GPU_GTX3080 at [0, 1] suggests potential for co-location
+
+4. **MES/ERP Integration:**
+   - Export `part_operations` for backflush point configuration
+   - Generate work instructions with part-action mapping
+
+5. **Complexity Balancing:**
+   - Use `complexity_distribution` to assess assembly difficulty
+   - `complexity_max` per station helps with operator skill assignment
+
+---
+
+### Example 4C: Optimization with Complexity Classification (Phase 1.5)
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/optimize" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "work_order_id": "WO_A",
+    "optimization_goal": "min_stations",
+    "target_takt": 30000,
+    "max_workers_per_station": 2,
+    "enable_complexity_classification": true
+  }'
+```
+
+**Response (Extended with Complexity Data):**
+```json
+{
+  "work_order_id": "WO_A",
+  "optimization_goal": "min_stations",
+  "takt_time_ms": 28500,
+  "line_count": 3,
+  "manpower_total": 3,
+  "utilization_avg": 94.5,
+  
+  "stations": [
+    {
+      "id": "WS-001",
+      "total_time_ms": 27000,
+      "assigned_tasks": [1, 2, 3],
+      "complexity_max": "medium",
+      "complexity_score": 4
+    },
+    {
+      "id": "WS-002",
+      "total_time_ms": 28500,
+      "assigned_tasks": [4, 5],
+      "complexity_max": "complex",
+      "complexity_score": 6
+    },
+    {
+      "id": "WS-003",
+      "total_time_ms": 26000,
+      "assigned_tasks": [6, 7, 8],
+      "complexity_max": "simple",
+      "complexity_score": 3
+    }
+  ],
+  
+  "complexity_distribution": {
+    "simple": 3,
+    "medium": 2,
+    "complex": 2,
+    "super_complex": 1
+  },
+  
+  "complexity_variance": 3,
+  "avg_complexity_score": 4.3
+}
+```
+
+**Use Cases for Complexity Classification:**
+
+1. **Operator Skill Assignment:**
+   - Assign experienced operators to `complexity_max="complex"` stations
+   - New operators start at `complexity_max="simple"` stations
+
+2. **Training Planning:**
+   - Use `complexity_distribution` to design training curriculum
+   - Progression path: simple → medium → complex → super_complex
+
+3. **Quality Risk Management:**
+   - `complexity_variance` indicates balance across stations
+   - Lower variance = more balanced difficulty = consistent quality
+
+4. **Capacity Planning:**
+   - High `avg_complexity_score` may require additional skilled workers
+   - Use for hiring and resource allocation decisions
+
+---
+
+### Example 4D: Optimization with Task Merging (Phase 1.5)
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/optimize" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "work_order_id": "WO_A",
+    "optimization_goal": "min_stations",
+    "target_takt": 30000,
+    "max_workers_per_station": 2,
+    "enable_task_merging": true,
+    "merge_efficiency_gain": 0.15
+  }'
+```
+
+**Response (Extended with Merge Data):**
+```json
+{
+  "work_order_id": "WO_A",
+  "optimization_goal": "min_stations",
+  "takt_time_ms": 27500,
+  "line_count": 2,
+  "manpower_total": 2,
+  "utilization_avg": 97.8,
+  
+  "stations": [
+    {
+      "id": "WS-001",
+      "total_time_ms": 27500,
+      "assigned_tasks": [1, 3, 5, 7],
+      "adjustable_tasks": [1, 3, 7],
+      "merged_task_pairs": [
+        [1, 3],
+        [5, 7]
+      ],
+      "online_load_ms": 27500,
+      "merge_time_saved_ms": 900
+    },
+    {
+      "id": "WS-002",
+      "total_time_ms": 26800,
+      "assigned_tasks": [2, 4, 6],
+      "adjustable_tasks": [2, 6],
+      "merged_task_pairs": [
+        [2, 6]
+      ],
+      "online_load_ms": 26800,
+      "merge_time_saved_ms": 450
+    }
+  ],
+  
+  "merged_tasks_count": 6,
+  "merge_efficiency_gain_pct": 15.0,
+  "total_time_saved_ms": 1350
+}
+```
+
+**Use Cases for Task Merging:**
+
+1. **Efficiency Improvement:**
+   - `merge_time_saved_ms` shows actual time reduction per station
+   - `total_time_saved_ms` = cumulative savings across all stations
+
+2. **Workload Optimization:**
+   - Merging similar tasks (e.g., multiple screw operations) reduces setup time
+   - `merge_efficiency_gain_pct` tunable based on historical data
+
+3. **Station Count Reduction:**
+   - Task merging may enable reducing `line_count` by 1-2 stations
+   - Compare results with/without merging to quantify benefit
 
 ---
 

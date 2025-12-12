@@ -132,6 +132,280 @@ Phase 1 adopts a **four-tier architecture** to achieve separation of concerns an
 
 ---
 
+## Extended Data Flow (Phase 1.5) - Part Tracking
+
+### Part-Aware Processing Architecture
+
+Phase 1.5 introduces **Part Tracking** capability to link assembly actions with BOM (Bill of Materials) parts, enabling material flow analysis and line-side inventory planning.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CSV Input Layer                          │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  tasks.csv (Extended Schema)                          │  │
+│  │  - task_id, duration, predecessors (Phase 1)          │  │
+│  │  - part_id (NEW): Part number from BOM                │  │
+│  │  - action_type (NEW): screw, glue, mount, test, etc. │  │
+│  │  - complexity_level (NEW): simple/medium/complex      │  │
+│  │  - offline_flag (NEW): 0=online, 1=offline            │  │
+│  └─────────────────┬─────────────────────────────────────┘  │
+└────────────────────┼─────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Task Classification Layer                      │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Part-Task Mapping Engine                             │  │
+│  │  - Group tasks by part_id                             │  │
+│  │  - Extract action_type for each task                  │  │
+│  │  - Build part dependency graph                        │  │
+│  │  - Classify complexity (auto-detect if missing)       │  │
+│  └─────────────────┬─────────────────────────────────────┘  │
+└────────────────────┼─────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│           CP-SAT Optimization Layer                         │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Part-Aware Solver                                    │  │
+│  │  - Standard constraints (precedence, takt, workers)   │  │
+│  │  - Part locality optimization (minimize part travel)  │  │
+│  │  - Complexity balancing across stations              │  │
+│  └─────────────────┬─────────────────────────────────────┘  │
+└────────────────────┼─────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│            Post-Processing Layer                            │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Part Flow Analysis                                   │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  For each station:                              │  │  │
+│  │  │  1. Collect all part_ids from assigned tasks    │  │  │
+│  │  │  2. Group actions by part_id                    │  │  │
+│  │  │  3. Generate parts_involved list                │  │  │
+│  │  │  4. Build part_operations map                   │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  │                                                         │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Global Part-Station Matrix Generation:         │  │  │
+│  │  │  - part_flow_summary: {part_id → [stations]}   │  │  │
+│  │  │  - Station-level BOM (for line-side inventory)  │  │  │
+│  │  │  - Part travel distance analysis                │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Output Layer                              │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  JSON Response (Extended)                             │  │
+│  │  {                                                    │  │
+│  │    "stations": [                                      │  │
+│  │      {                                                │  │
+│  │        "id": "WS-001",                                │  │
+│  │        "parts_involved": [                            │  │
+│  │          {"part_id": "GPU_GTX3080",                   │  │
+│  │           "actions": ["install", "test"],            │  │
+│  │           "task_ids": [2, 5]}                         │  │
+│  │        ],                                             │  │
+│  │        "complexity_max": "complex"                    │  │
+│  │      }                                                │  │
+│  │    ],                                                 │  │
+│  │    "part_flow_summary": {                             │  │
+│  │      "GPU_GTX3080": [0, 1],  // Stations 0 & 1       │  │
+│  │      "SCREW_M3": [0, 1, 2]   // Stations 0, 1, 2     │  │
+│  │    },                                                 │  │
+│  │    "part_count": 15                                   │  │
+│  │  }                                                    │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Part Tracking Use Cases
+
+| Use Case                         | Description                                      | Output Data                       |
+|----------------------------------|--------------------------------------------------|-----------------------------------|
+| **Line-Side Inventory Planning** | Determine which parts are needed at each station | `stations[].parts_involved`       |
+| **BOM Verification**             | Ensure all BOM items are assigned to stations    | `part_count`, `part_flow_summary` |
+| **Material Flow Analysis**       | Track part movement across stations              | `part_flow_summary`               |
+| **Backflush Point Setup**        | Configure MES/ERP backflush locations            | `part_station_matrix.json`        |
+| **Complexity Balancing**         | Distribute complex assembly tasks evenly         | `stations[].complexity_max`       |
+| **Work Instruction Generation**  | Auto-generate SOPs with part-action mapping      | `stations[].part_operations`      |
+
+### Data Model Extensions
+
+#### Input Schema (CSV)
+```csv
+task_id,duration,part_id,action_type,complexity_level,offline_flag,predecessors
+1,5000,"SCREW_M3","screw","simple",0,
+2,8000,"GPU_GTX3080","install","complex",0,1
+3,3000,"THERMAL_PAD","apply","medium",1,1
+4,4000,"GPU_GTX3080","test","complex",0,2
+```
+
+#### Output Schema (JSON)
+```python
+# Station-level part information
+class PartOperation(BaseModel):
+    part_id: str                    # Part number from BOM
+    actions: List[str]              # Actions performed on this part
+    task_ids: List[int]             # Associated task IDs
+    complexity: str                 # simple/medium/complex/super_complex
+
+class StationInfo(BaseModel):
+    id: str
+    total_time_ms: int
+    workers: int
+    assigned_tasks: List[int]
+    
+    # Phase 1.5 Part Tracking (NEW)
+    parts_involved: List[PartOperation] = []     # Parts at this station
+    part_operations: Dict[str, List[str]] = {}   # part_id → [actions]
+    complexity_max: str = "simple"               # Highest complexity level
+
+# Global part flow summary
+class OptimizeResponse(BaseModel):
+    # ... existing fields ...
+    
+    # Phase 1.5 Part Tracking (NEW)
+    part_flow_summary: Dict[str, List[int]] = {}  # part_id → [station_indices]
+    part_count: int = 0                           # Total unique parts
+    complexity_distribution: Dict[str, int] = {}  # complexity → count
+```
+
+---
+
+## Extended Data Flow (Phase 1.5) - Complexity Classification
+
+### Complexity-Aware Processing Architecture
+
+Phase 1.5 introduces **Assembly Complexity Classification** (REQ #10) to balance workload difficulty across stations and support operator skill assignment.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                Complexity Classification Layer               │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Auto-Classification Engine                           │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Input: task with complexity_level (optional)   │  │  │
+│  │  │                                                  │  │  │
+│  │  │  If complexity_level is missing:                │  │  │
+│  │  │    1. Extract keywords from part_id             │  │  │
+│  │  │    2. Match against classification rules:       │  │  │
+│  │  │       - simple: screw, clip, bracket, foam      │  │  │
+│  │  │       - medium: fan, cable, thermal, mount      │  │  │
+│  │  │       - complex: gpu, hdd, raid, nic, pcie      │  │  │
+│  │  │       - super_complex: cto, custom, special     │  │  │
+│  │  │    3. Assign complexity_level                   │  │  │
+│  │  │                                                  │  │  │
+│  │  │  Output: task with classified complexity        │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Complexity Balancing Solver                          │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │  Constraints:                                   │  │  │
+│  │  │  1. Complexity score per station ≤ threshold    │  │  │
+│  │  │     Score = Σ(weight[complexity] * task_count)  │  │  │
+│  │  │     Weights: simple=1, medium=2,                │  │  │
+│  │  │              complex=4, super_complex=8         │  │  │
+│  │  │                                                  │  │  │
+│  │  │  2. Minimize complexity variance across stations│  │  │
+│  │  │     variance = max(score) - min(score)          │  │  │
+│  │  │                                                  │  │  │
+│  │  │  Objective: balance + minimize stations         │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Output Generation                        │
+│  {                                                          │
+│    "stations": [                                            │
+│      {                                                      │
+│        "id": "WS-001",                                      │
+│        "complexity_max": "complex",  // Highest complexity  │
+│        "complexity_score": 12         // Weighted score     │
+│      }                                                      │
+│    ],                                                       │
+│    "complexity_distribution": {                             │
+│      "simple": 5, "medium": 3, "complex": 2               │
+│    }                                                        │
+│  }                                                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Complexity Classification Use Cases
+
+| Use Case                      | Description                                          | Benefits                              |
+|-------------------------------|------------------------------------------------------|---------------------------------------|
+| **Operator Skill Assignment** | Match station complexity to operator skill level     | Improve quality, reduce training time |
+| **Training Planning**         | Identify simple stations for new operators           | Gradual skill development pathway     |
+| **Quality Risk Management**   | Distribute complex tasks to prevent error clustering | Reduce defect rates                   |
+| **Capacity Planning**         | Estimate manpower needs by complexity tier           | Better resource allocation            |
+| **Process Improvement**       | Identify super_complex tasks for simplification      | Continuous improvement targets        |
+
+---
+
+## Combined Model Architecture (Phase 1.5)
+
+### Integrated Processing Flow
+
+Phase 1.5 **Combined Model** integrates all four extended features for comprehensive optimization:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│               Combined Model Processing Flow                │
+│                                                             │
+│  CSV Input (with all extended columns)                      │
+│    ↓                                                        │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Feature 1: Offline Task Filtering                   │  │
+│  │  - Separate online (optimize) vs offline (fixed)     │  │
+│  └──────────────────┬───────────────────────────────────┘  │
+│                     ↓                                       │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Feature 3: Complexity Classification                │  │
+│  │  - Auto-classify missing complexity_level            │  │
+│  └──────────────────┬───────────────────────────────────┘  │
+│                     ↓                                       │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Feature 4: Part-Task Mapping                        │  │
+│  │  - Group tasks by part_id                            │  │
+│  │  - Build part dependency graph                       │  │
+│  └──────────────────┬───────────────────────────────────┘  │
+│                     ↓                                       │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  CP-SAT Solver with Multi-Objective                  │  │
+│  │  1. Standard: precedence, takt, workers              │  │
+│  │  2. Part locality (minimize part travel)            │  │
+│  │  3. Complexity balancing (variance)                 │  │
+│  │  4. Merge opportunities (Feature 2)                 │  │
+│  └──────────────────┬───────────────────────────────────┘  │
+│                     ↓                                       │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Feature 2: Task Merging Post-Processing            │  │
+│  │  - Identify merge candidates (same station + type)  │  │
+│  │  - Apply efficiency gain                            │  │
+│  └──────────────────┬───────────────────────────────────┘  │
+│                     ↓                                       │
+│  Comprehensive JSON Output (all KPIs)                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Combined Model Benefits
+
+- **Holistic Optimization**: Considers all factors simultaneously
+- **Trade-off Analysis**: Balances part locality vs complexity vs merging
+- **Realistic Modeling**: Accurately reflects production constraints
+- **Maximum Efficiency**: Achieves best possible line balance
+
+---
+
 ## System Components
 
 ### 1. Frontend Component (`dashboard.html`)
@@ -449,11 +723,11 @@ GET  /api/v1/optimizations/{id}/takt-summary  # Get KPI summary
 
 Phase 1 supports progressive CSV schema evolution:
 
-| Schema Version | Columns | Support |
-|----------------|---------|---------|
-| **Phase 1 Basic** | task_id, duration, predecessors | ✅ Full |
-| **Phase 1.5 Extended** | +offline_flag, adjustable, action_type | ✅ Full |
-| **Phase 1.5 Complete** | +complexity_level, part_id | ✅ Full |
+| Schema Version         | Columns                                | Support |
+|------------------------|----------------------------------------|---------|
+| **Phase 1 Basic**      | task_id, duration, predecessors        | ✅ Full  |
+| **Phase 1.5 Extended** | +offline_flag, adjustable, action_type | ✅ Full  |
+| **Phase 1.5 Complete** | +complexity_level, part_id             | ✅ Full  |
 
 ### Database Performance Features
 
