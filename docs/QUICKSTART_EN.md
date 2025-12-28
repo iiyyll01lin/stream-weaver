@@ -1,6 +1,8 @@
-# Phase 1 Quick Start Guide
+# Quick Start Guide
 
-This guide helps you start and test the Line Balance System Phase 1 MVP in 5 minutes.
+> **Get the Line Balance System running in 5 minutes**
+
+This guide covers initial setup and basic optimization. For advanced features (multi-line, AI/ML, 3D), see phase-specific documentation.
 
 ---
 
@@ -32,7 +34,7 @@ pip install -r requirements.txt
 
 **Expected output:**
 ```
-Successfully installed fastapi-0.104.0 uvicorn-0.24.0 ortools-9.7.0 ...
+Successfully installed fastapi uvicorn ortools pydantic sqlalchemy langchain mediapipe ...
 ```
 
 ---
@@ -47,12 +49,12 @@ python3 src/api_server.py
 **Expected output:**
 ```
 ================================================================================
-Line Balance System API Service - Phase 1 MVP
+Stream Weaver Line Balance System v3.1.0-phase3
 ================================================================================
 Workspace: /mnt/d/workspace/line-balance
 Data directory: /mnt/d/workspace/line-balance/data
-Algorithm: /mnt/d/workspace/line-balance/src/sche-algo.py
 Available work orders: ['WO_A', 'WO_B', 'WO_C']
+Features: Core Optimization | Multi-Line | Fishbone | Layout | NLP | 3D
 ================================================================================
 Server running at http://localhost:8000
 API documentation: http://localhost:8000/api/docs
@@ -82,10 +84,11 @@ curl "http://localhost:8000/health"
 ```json
 {
   "status": "healthy",
-  "version": "1.0.0-phase1",
+  "version": "3.1.0-phase3",
   "algo_available": true,
   "data_dir": "/mnt/d/workspace/line-balance/data",
-  "available_work_orders": ["WO_A", "WO_B", "WO_C"]
+  "available_work_orders": ["WO_A", "WO_B", "WO_C"],
+  "features": ["optimization", "multi_line", "fishbone", "layout", "nlp", "3d"]
 }
 ```
 
@@ -288,12 +291,23 @@ uvicorn src.api_server:app --host 0.0.0.0 --port 8080
    - Try different takt times (40000 ~ 200000 ms)
    - Adjust max workers per station
 
+4. **Try Phase 2 Features:**
+   - Multi-line optimization with `multi_line_config`
+   - Line type recommendation: `GET /recommend-line-type`
+   - Fishbone diagram: `GET /fishbone-diagram`
+   - 2D layout editor in dashboard
+
+5. **Try Phase 3 Features (requires setup):**
+   - Natural language queries: `POST /nlp-query`
+   - Body sensor upload: `POST /upload-sensor-data`
+   - 3D model management: `GET/POST /3d-models`
+
 ### Consult Documentation
 
-- **API Specification:** `docs/PHASE1_API_SPEC.md`
-- **Implementation Guide:** `docs/PHASE1_IMPLEMENTATION.md`
-- **Stage Specifications:** `docs/stage-specs.md`
-- **Feasibility Assessment:** `docs/feasibility-assessment.md`
+- **Usage Examples:** [docs/EXAMPLES.md](EXAMPLES.md)
+- **API Specifications:** [Phase 1](PHASE1_API_SPEC_EN.md) | [Phase 2](PHASE2_API_SPEC_EN.md) | [Phase 3](PHASE3_API_SPEC_EN.md)
+- **Architecture:** [Phase 1](PHASE1_ARCHITECTURE_EN.md) | [Phase 2](PHASE2_ARCHITECTURE_EN.md) | [Phase 3](PHASE3_ARCHITECTURE_EN.md)
+- **Models & Strategies:** [docs/MODELS_STRATEGIES_EN.md](MODELS_STRATEGIES_EN.md)
 
 ### Interactive API Documentation
 
@@ -343,6 +357,18 @@ Service will run at **http://localhost:8000**
 
 ---
 
+## 🔗 Related Documentation
+
+| Document | Description |
+|----------|-------------|
+| [README](../README.md) | Project overview |
+| [Usage Examples](EXAMPLES.md) | 12 detailed API examples |
+| [IO Specification](IO_SPECIFICATION_EN.md) | CSV input/output formats |
+| [Models & Strategies](MODELS_STRATEGIES_EN.md) | Algorithm explanations |
+| [Database & API Design](DATABASE_API_DESIGN_SPEC_EN.md) | Schema and REST API spec |
+
+---
+
 **Maintainer:** JASON YY, LIN  
-**Version:** 1.0.0-phase1  
-**Last Updated:** 2025-11-06
+**Version:** 3.1.0-phase3  
+**Last Updated:** 2025-12-14

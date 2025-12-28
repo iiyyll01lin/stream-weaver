@@ -1,12 +1,13 @@
 # Phase 3 Architecture Design
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-20  
+**Document Version**: 2.0 | **Last Updated**: 2025-12-12  
 **Related Documents**:
 - [Phase 3 Implementation Guide](PHASE3_IMPLEMENTATION_EN.md)
 - [Phase 3 API Specification](PHASE3_API_SPEC_EN.md)
 - [Phase 2 Architecture](PHASE2_ARCHITECTURE_EN.md)
 - [Database & API Design](DATABASE_API_DESIGN_SPEC_EN.md)
 - [Requirements Coverage Analysis](REQUIREMENTS_COVERAGE_ANALYSIS.md)
+- [REQ Gap Remediation](REQ_GAP_REMEDIATION.md)
 
 ---
 
@@ -19,6 +20,11 @@
 - [Body Sensor Data Processing](#body-sensor-data-processing)
 - [Version Management & Multi-Site Sharing](#version-management--multi-site-sharing)
 - [Collision Detection System](#collision-detection-system)
+- [Multilingual Support (REQ #37)](#multilingual-support-new)
+- [Interactive 3D (REQ #38)](#interactive-3d-new)
+- [Live Monitoring & Alerts (REQ #39)](#live-monitoring--alerts-new)
+- [APS Integration (REQ #40)](#aps-integration-new)
+- [Automatic WI Generation (REQ #52)](#automatic-wi-generation-new)
 - [Technology Stack](#technology-stack)
 - [Data Flow](#data-flow)
 - [Database Schema](#database-schema)
@@ -1636,6 +1642,4187 @@ COLLISION_TYPES = {
     "ergonomic_risk": "Awkward posture required",
     "material_flow_block": "Conveyor path blocked"
 }
+```
+
+---
+
+## Multilingual Support (NEW) ⚠️ REQ #37
+
+### Overview
+
+Support for multiple languages across the entire application: English (EN), Traditional Chinese (zh-TW), Spanish (ES), and Simplified Chinese (zh-CN).
+
+> **📋 SCOPE UPDATE (2025-12-13):**  
+> Spanish (ES) and Simplified Chinese (zh-CN) support have been **added to scope** per project requirements (REQ #37).  
+> The system will support **English (EN)**, **Traditional Chinese (zh-TW)**, **Spanish (ES)**, and **Simplified Chinese (zh-CN)**.  
+> Full multilingual support for all target factory regions is now included.
+
+### Supported Languages
+
+| Code | Language | Status | Target Users | Phase |
+|------|----------|--------|--------------|-------|
+| `en` | English | ✅ Supported | Global users, documentation | P3 |
+| `zh-TW` | Traditional Chinese | ✅ Supported | Taiwan factories, 中文使用者 | P3 |
+| `es` | Spanish | ✅ Supported | Mexico factories, Latin America | P3 |
+| `zh-CN` | Simplified Chinese | ✅ Supported | Mainland China factories, 简体中文用户 | P3 |
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  i18n Architecture                          │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  react-intl / react-i18next (Frontend)                │  │
+│  │  - Language detection (browser, user preference)      │  │
+│  │  - Dynamic locale switching                           │  │
+│  │  - Formatted numbers, dates, currencies               │  │
+│  └───────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Babel / gettext (Backend)                            │  │
+│  │  - API error messages                                 │  │
+│  │  - Email notifications                                │  │
+│  │  - Generated reports (PDF/Excel)                      │  │
+│  └───────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Translation Files (EN + zh-TW + ES + zh-CN)          │  │
+│  │  - locales/en.json                                    │  │
+│  │  - locales/zh-TW.json                                 │  │
+│  │  - locales/es.json (Spanish - Mexico factories)       │  │
+│  │  - locales/zh-CN.json (Simplified Chinese - Mainland) │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+```typescript
+// Frontend: react-intl setup
+import { IntlProvider, FormattedMessage, useIntl } from 'react-intl';
+import messages_en from './locales/en.json';
+import messages_tw from './locales/zh-TW.json';
+import messages_es from './locales/es.json';
+import messages_cn from './locales/zh-CN.json';
+
+const messages = {
+  'en': messages_en,
+  'zh-TW': messages_tw,
+  'es': messages_es,
+  'zh-CN': messages_cn
+};
+
+// Supported locales
+const SUPPORTED_LOCALES = ['en', 'zh-TW', 'es', 'zh-CN'] as const;
+type SupportedLocale = typeof SUPPORTED_LOCALES[number];
+
+// Usage in components
+<FormattedMessage id="optimization.title" defaultMessage="Line Balance Optimization" />
+
+// API endpoint for locale
+GET /api/user/locale
+PUT /api/user/locale { "locale": "zh-CN" }  // Accepts 'en', 'zh-TW', 'es', or 'zh-CN'
+```
+
+### Translation Coverage
+
+| Area | Keys | EN Status | zh-TW Status | ES Status | zh-CN Status |
+|------|------|-----------|--------------|-----------|---------------|
+| UI Labels | ~500 | ✅ Ready | ✅ Ready | 📋 Planned | 📋 Planned |
+| Error Messages | ~100 | ✅ Ready | ✅ Ready | 📋 Planned | 📋 Planned |
+| Help Text | ~200 | ✅ Ready | 📋 Planned | 📋 Planned | 📋 Planned |
+| Reports | ~150 | ✅ Ready | 📋 Planned | 📋 Planned | 📋 Planned |
+| Notifications | ~50 | ✅ Ready | 📋 Planned | 📋 Planned | 📋 Planned |
+
+### Spanish Translation Service (Placeholder)
+
+```python
+# src/services/translation_service.py
+from typing import Dict, List, Optional
+from enum import Enum
+
+class SupportedLocale(str, Enum):
+    """Supported UI languages"""
+    EN = "en"
+    ZH_TW = "zh-TW"
+    ES = "es"
+    ZH_CN = "zh-CN"
+
+class TranslationService:
+    """
+    Translation service for multilingual support.
+    Placeholder implementation - integrate with translation management system.
+    """
+    
+    def __init__(self, config: dict):
+        self.default_locale = SupportedLocale.EN
+        self.translation_cache: Dict[str, Dict[str, str]] = {}
+        self._load_translations()
+    
+    def _load_translations(self):
+        """Load translation files for all supported locales"""
+        # Placeholder: Load from JSON files or translation management API
+        self.translation_cache = {
+            "en": self._load_locale_file("locales/en.json"),
+            "zh-TW": self._load_locale_file("locales/zh-TW.json"),
+            "es": self._load_locale_file("locales/es.json"),
+            "zh-CN": self._load_locale_file("locales/zh-CN.json"),
+        }
+    
+    def _load_locale_file(self, path: str) -> Dict[str, str]:
+        """Load translations from file (placeholder)"""
+        # TODO: Replace with actual file loading
+        return {}
+    
+    def translate(
+        self,
+        key: str,
+        locale: SupportedLocale,
+        params: Optional[Dict] = None
+    ) -> str:
+        """Get translated string for key"""
+        translations = self.translation_cache.get(locale.value, {})
+        text = translations.get(key, key)  # Fallback to key if not found
+        
+        if params:
+            for k, v in params.items():
+                text = text.replace(f"{{{k}}}", str(v))
+        
+        return text
+    
+    def get_missing_translations(
+        self,
+        locale: SupportedLocale
+    ) -> List[str]:
+        """Get list of keys missing translation for a locale"""
+        en_keys = set(self.translation_cache.get("en", {}).keys())
+        locale_keys = set(self.translation_cache.get(locale.value, {}).keys())
+        return list(en_keys - locale_keys)
+
+# Spanish-specific formatting helpers
+class SpanishFormatter:
+    """Locale-specific formatting for Spanish (Mexico)"""
+    
+    @staticmethod
+    def format_number(value: float) -> str:
+        """Format number with Mexican Spanish conventions"""
+        # Mexico uses comma for thousands, period for decimal
+        return f"{value:,.2f}"
+    
+    @staticmethod
+    def format_date(date) -> str:
+        """Format date in Mexican Spanish format (DD/MM/YYYY)"""
+        return date.strftime("%d/%m/%Y")
+    
+    @staticmethod
+    def format_currency(value: float) -> str:
+        """Format currency in Mexican Peso"""
+        return f"${value:,.2f} MXN"
+
+# Simplified Chinese-specific formatting helpers
+class SimplifiedChineseFormatter:
+    """Locale-specific formatting for Simplified Chinese (Mainland China)"""
+    
+    @staticmethod
+    def format_number(value: float) -> str:
+        """Format number with Chinese conventions"""
+        # China uses comma for thousands, period for decimal
+        return f"{value:,.2f}"
+    
+    @staticmethod
+    def format_date(date) -> str:
+        """Format date in Chinese format (YYYY年MM月DD日)"""
+        return date.strftime("%Y年%m月%d日")
+    
+    @staticmethod
+    def format_currency(value: float) -> str:
+        """Format currency in Chinese Yuan (RMB)"""
+        return f"¥{value:,.2f} CNY"
+    
+    @staticmethod
+    def format_percentage(value: float) -> str:
+        """Format percentage with Chinese suffix"""
+        return f"{value:.1f}%"
+```
+
+### Spanish Translation File Structure (Placeholder)
+
+```json
+// locales/es.json (Placeholder - to be completed by translation team)
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "search": "Buscar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito"
+  },
+  "optimization": {
+    "title": "Optimización de Balance de Línea",
+    "run": "Ejecutar Optimización",
+    "results": "Resultados",
+    "stations": "Estaciones",
+    "workers": "Trabajadores",
+    "takt_time": "Tiempo Takt",
+    "utilization": "Utilización",
+    "bottleneck": "Cuello de Botella"
+  },
+  "dashboard": {
+    "overview": "Resumen",
+    "production_lines": "Líneas de Producción",
+    "current_status": "Estado Actual",
+    "performance": "Rendimiento"
+  },
+  "alerts": {
+    "cycle_time_warning": "Advertencia: Tiempo de ciclo excedido",
+    "cycle_time_critical": "Crítico: Tiempo de ciclo muy alto",
+    "station_idle": "Estación inactiva",
+    "quality_issue": "Problema de calidad detectado"
+  },
+  "reports": {
+    "export_excel": "Exportar a Excel",
+    "export_pdf": "Exportar a PDF",
+    "date_range": "Rango de Fechas",
+    "generated_by": "Generado por"
+  }
+}
+```
+
+### Simplified Chinese Translation File Structure (Placeholder)
+
+```json
+// locales/zh-CN.json (Placeholder - to be completed by translation team)
+{
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "search": "搜索",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功"
+  },
+  "optimization": {
+    "title": "线平衡优化",
+    "run": "运行优化",
+    "results": "结果",
+    "stations": "工位",
+    "workers": "工人",
+    "takt_time": "节拍时间",
+    "utilization": "利用率",
+    "bottleneck": "瓶颈"
+  },
+  "dashboard": {
+    "overview": "概览",
+    "production_lines": "生产线",
+    "current_status": "当前状态",
+    "performance": "性能"
+  },
+  "alerts": {
+    "cycle_time_warning": "警告: 周期时间超标",
+    "cycle_time_critical": "严重: 周期时间过高",
+    "station_idle": "工位空闲",
+    "quality_issue": "检测到质量问题"
+  },
+  "reports": {
+    "export_excel": "导出Excel",
+    "export_pdf": "导出PDF",
+    "date_range": "日期范围",
+    "generated_by": "生成者"
+  }
+}
+```
+
+### Translation Management API (Placeholder)
+
+```yaml
+# Translation management endpoints (future integration)
+GET /api/i18n/locales:
+  description: List supported locales
+  response:
+    locales:
+      - code: "en"
+        name: "English"
+        rtl: false
+        completion: 100
+      - code: "zh-TW"
+        name: "繁體中文"
+        rtl: false
+        completion: 85
+      - code: "es"
+        name: "Español (México)"
+        rtl: false
+        completion: 60
+      - code: "zh-CN"
+        name: "简体中文"
+        rtl: false
+        completion: 60
+
+GET /api/i18n/translations/{locale}:
+  description: Get all translations for a locale
+  response:
+    locale: string
+    translations: object
+    last_updated: datetime
+
+POST /api/i18n/translations/{locale}:
+  description: Update translations (admin only)
+  request:
+    translations: object
+  response:
+    updated_count: integer
+    status: string
+
+GET /api/i18n/missing/{locale}:
+  description: Get missing translation keys for a locale
+  response:
+    locale: string
+    missing_keys: string[]
+    total_missing: integer
+```
+
+### Implementation Timeline
+
+| Sprint | Deliverable | Status |
+|--------|-------------|--------|
+| Sprint 5 | i18n framework setup (react-intl) | Planned |
+| Sprint 5 | English (EN) complete translations | Planned |
+| Sprint 6 | Traditional Chinese (zh-TW) translations | Planned |
+| Sprint 6 | Spanish (ES) core UI translations | Planned |
+| Sprint 7 | Spanish (ES) reports & notifications | Planned |
+| Sprint 7 | Translation management admin portal | Planned |
+
+---
+
+## Interactive 3D (NEW) ⚠️ REQ #38
+
+### Part-Level 3D Interaction
+
+Enable users to rotate, move, and interact with individual parts in the 3D viewer.
+
+### Features
+
+| Feature | Description | Technology |
+|---------|-------------|------------|
+| **Select Part** | Click to select individual components | Three.js Raycaster |
+| **Rotate Part** | Free rotation with gizmo controls | TransformControls |
+| **Move Part** | Translate part in 3D space | TransformControls |
+| **Scale Part** | Resize components | TransformControls |
+| **Part Info** | Show part details on hover | Custom tooltip |
+| **Explode View** | Separate parts for inspection | Animation system |
+| **Assembly Sequence** | Animated assembly order | Timeline animation |
+
+### Implementation
+
+```typescript
+// Three.js Transform Controls
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls';
+
+const transformControl = new TransformControls(camera, renderer.domElement);
+transformControl.attach(selectedObject);
+transformControl.setMode('translate'); // 'rotate', 'scale'
+
+// Part selection with Raycaster
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function onMouseClick(event) {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(scene.children, true);
+  
+  if (intersects.length > 0) {
+    selectPart(intersects[0].object);
+  }
+}
+
+// Explosion view animation
+function explodeView(explodeDistance: number) {
+  parts.forEach((part, index) => {
+    const direction = part.position.clone().normalize();
+    part.userData.originalPosition = part.position.clone();
+    part.position.add(direction.multiplyScalar(explodeDistance));
+  });
+}
+```
+
+### API Endpoints
+
+```
+GET /3d-models/{model_id}/parts           # List all parts in model
+GET /3d-models/{model_id}/parts/{part_id} # Get part details
+POST /3d-models/{model_id}/explode        # Generate exploded view
+POST /3d-models/{model_id}/sequence       # Get assembly sequence animation
+```
+
+---
+
+## Live Monitoring & Alerts (NEW) ⚠️ REQ #39
+
+**Phase Assignment:** Phase 3 - Advanced Features  
+**Implementation Priority:** High  
+**Target Sprint:** Sprint 5-6 (Phase 3)  
+**Dependencies:** MES Integration (REQ #44), BDC Integration (REQ #44b)
+
+### Overview
+
+Real-time monitoring of production cycle times with intelligent alerting for anomalies. This feature enables factory supervisors and line leaders to receive immediate notifications when cycle times deviate from expected values (sourced from BDC).
+
+### Real-Time Cycle Time Monitoring
+
+Monitor actual cycle times against expected values and trigger alerts for anomalies.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                Live Monitoring Architecture                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Data Sources                                         │  │
+│  │  - MES/SCADA systems (cycle time data)                │  │
+│  │  - IoT sensors (station status)                       │  │
+│  │  - Barcode scanners (production counts)               │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │ MQTT / Kafka / WebSocket            │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Stream Processing (Real-Time)                        │  │
+│  │  - Apache Kafka Streams / Flink                       │  │
+│  │  - Moving average calculation                         │  │
+│  │  - Anomaly detection (Z-score, IQR)                   │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │ Alert trigger                       │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Alert Service                                        │  │
+│  │  - Email notifications                                │  │
+│  │  - Push notifications (mobile app)                    │  │
+│  │  - Dashboard alerts (WebSocket)                       │  │
+│  │  - Slack/Teams integration                            │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Alert Types
+
+| Alert Type | Trigger Condition | Severity | Action |
+|------------|-------------------|----------|--------|
+| **Cycle Time Exceeded** | Actual > Expected × 1.2 | Warning | Notify supervisor |
+| **Cycle Time Critical** | Actual > Expected × 1.5 | Critical | Stop line, investigate |
+| **Station Idle** | No activity > 5 min | Warning | Check worker status |
+| **Quality Issue** | Defect rate > threshold | Critical | Quality hold |
+| **Ergonomic Risk** | REBA score > 7 | Warning | Suggest break/rotation |
+
+### API Endpoints
+
+```
+WebSocket: /ws/live-monitoring/{site_id}
+
+# REST endpoints for configuration
+POST /alerts/rules                    # Create alert rule
+GET  /alerts/rules                    # List alert rules
+PUT  /alerts/rules/{rule_id}          # Update rule
+DELETE /alerts/rules/{rule_id}        # Delete rule
+
+POST /alerts/acknowledge/{alert_id}   # Acknowledge alert
+GET  /alerts/history                  # Get alert history
+```
+
+### Alert Rule Schema
+
+```json
+{
+  "rule_id": "alert_001",
+  "name": "Cycle Time Warning",
+  "condition": {
+    "metric": "cycle_time_ms",
+    "operator": "gt",
+    "threshold": 36000,
+    "duration_seconds": 60
+  },
+  "severity": "warning",
+  "notifications": {
+    "email": ["supervisor@company.com"],
+    "slack_channel": "#production-alerts",
+    "dashboard": true
+  },
+  "enabled": true
+}
+```
+
+### Alert Escalation Matrix
+
+| Alert Level | Trigger Condition | Notification Recipients | Response Time |
+|-------------|-------------------|------------------------|---------------|
+| **Level 1** | 10-20% over expected CT | Line Leader (dashboard) | 5 minutes |
+| **Level 2** | 20-50% over expected CT | Supervisor (email + push) | 15 minutes |
+| **Level 3** | >50% over expected CT | Plant Manager (SMS + email) | 30 minutes |
+| **Critical** | Station stopped / quality hold | All stakeholders | Immediate |
+
+### BDC-Linked Threshold Configuration
+
+```python
+# src/services/alert_threshold_service.py
+class AlertThresholdService:
+    """Dynamic thresholds linked to BDC Expected CT"""
+    
+    async def calculate_dynamic_threshold(
+        self, 
+        station_id: str,
+        product_id: str
+    ) -> AlertThreshold:
+        """Calculate alert thresholds based on BDC Expected CT"""
+        # Fetch expected CT from BDC
+        expected_ct = await self.bdc_adapter.get_expected_cycle_time(
+            product_id, station_id
+        )
+        
+        return AlertThreshold(
+            station_id=station_id,
+            product_id=product_id,
+            expected_ct_seconds=expected_ct["value"],
+            warning_threshold=expected_ct["value"] * 1.2,   # +20%
+            critical_threshold=expected_ct["value"] * 1.5,  # +50%
+            source="BDC",
+            last_updated=datetime.utcnow()
+        )
+    
+    async def refresh_all_thresholds(self, site_id: str) -> Dict:
+        """Refresh all thresholds from BDC for a site"""
+        bdc_data = await self.bdc_adapter.sync_cycle_times(site_id)
+        updated_count = 0
+        for item in bdc_data["items"]:
+            await self.update_threshold(item)
+            updated_count += 1
+        return {"updated_count": updated_count}
+```
+
+### Implementation Timeline
+
+| Sprint | Deliverable | Status |
+|--------|-------------|--------|
+| Sprint 5 | WebSocket real-time dashboard | Planned |
+| Sprint 5 | Basic alert rules engine | Planned |
+| Sprint 6 | Email/Slack notification integration | Planned |
+| Sprint 6 | BDC threshold synchronization | Planned |
+| Sprint 7 | Historical alert analytics | Planned |
+
+---
+
+## APS Integration (NEW) ⚠️ REQ #40
+
+### Advanced Planning & Scheduling Integration
+
+Interface with external APS systems for production planning integration.
+
+### Integration Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   APS Integration Layer                      │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  APS Adapter Service                                  │  │
+│  │  - SAP PP/DS adapter                                  │  │
+│  │  - Oracle APS adapter                                 │  │
+│  │  - Kinaxis RapidResponse adapter                      │  │
+│  │  - Custom APS adapter (REST/SOAP)                     │  │
+│  └───────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Data Exchange                                        │  │
+│  │  - Receive: Work orders, due dates, priorities        │  │
+│  │  - Send: Capacity, cycle times, constraints           │  │
+│  │  - Sync frequency: Real-time / Batch (configurable)   │  │
+│  └───────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Line Balance ↔ APS Feedback Loop                     │  │
+│  │  - APS sends demand → LB optimizes lines              │  │
+│  │  - LB sends capacity → APS adjusts schedule           │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### API Endpoints
+
+```
+# APS Configuration
+GET  /aps/connections                 # List configured APS systems
+POST /aps/connections                 # Add APS connection
+PUT  /aps/connections/{conn_id}       # Update connection
+DELETE /aps/connections/{conn_id}     # Remove connection
+POST /aps/connections/{conn_id}/test  # Test connection
+
+# Data Exchange
+POST /aps/sync/work-orders            # Import work orders from APS
+POST /aps/sync/capacity               # Send capacity data to APS
+GET  /aps/sync/status                 # Get sync status
+
+# Webhooks (APS → Line Balance)
+POST /aps/webhook/order-created       # New order notification
+POST /aps/webhook/order-updated       # Order update notification
+POST /aps/webhook/priority-changed    # Priority change notification
+```
+
+### Connection Configuration
+
+```json
+{
+  "connection_id": "sap_pp_prod",
+  "name": "SAP PP/DS Production",
+  "type": "sap",
+  "config": {
+    "host": "sap.company.com",
+    "port": 8080,
+    "client": "100",
+    "user": "integration_user",
+    "password_secret": "vault://sap-pp-password"
+  },
+  "sync_config": {
+    "mode": "real_time",
+    "batch_interval_minutes": null,
+    "import_work_orders": true,
+    "export_capacity": true
+  },
+  "enabled": true
+}
+```
+
+---
+
+## Automatic WI Generation (NEW) ⚠️ REQ #52
+
+### Work Instruction Auto-Generation
+
+Automatically generate Work Instructions (WI) from assembly sequence database.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                WI Generation Pipeline                        │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Input Sources                                        │  │
+│  │  - Assembly sequence database                         │  │
+│  │  - Class code definitions                             │  │
+│  │  - Part information (images, specs)                   │  │
+│  │  - Touch time data                                    │  │
+│  │  - 3D model library                                   │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                     │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  WI Generator Engine                                  │  │
+│  │  - Template engine (Jinja2 / Docxtpl)                 │  │
+│  │  - LLM-assisted text generation                       │  │
+│  │  - Image extraction from 3D models                    │  │
+│  │  - Multi-language support                             │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                     │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Output Formats                                       │  │
+│  │  - PDF Work Instructions                              │  │
+│  │  - HTML (tablet-friendly)                             │  │
+│  │  - DOCX (editable)                                    │  │
+│  │  - Video animation (from 3D sequence)                 │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### API Endpoints
+
+```
+# WI Generation
+POST /wi/generate                     # Generate WI for work order
+GET  /wi/{wi_id}                      # Get generated WI
+GET  /wi/{wi_id}/download             # Download WI (PDF/DOCX/HTML)
+
+# WI Templates
+GET  /wi/templates                    # List WI templates
+POST /wi/templates                    # Create custom template
+PUT  /wi/templates/{template_id}      # Update template
+
+# WI Review & Approval
+POST /wi/{wi_id}/submit-review        # Submit for review
+POST /wi/{wi_id}/approve              # Approve WI
+POST /wi/{wi_id}/reject               # Reject with comments
+```
+
+### WI Generation Request
+
+```json
+{
+  "work_order_id": "WO_DL360_G11",
+  "template_id": "standard_assembly_v2",
+  "output_format": "pdf",
+  "language": "en",
+  "options": {
+    "include_images": true,
+    "include_3d_snapshots": true,
+    "include_safety_warnings": true,
+    "include_quality_checkpoints": true,
+    "video_animation": false
+  },
+  "station_filter": [1, 2, 3]
+}
+```
+
+### WI Output Structure
+
+```json
+{
+  "wi_id": "WI_DL360_G11_001",
+  "work_order_id": "WO_DL360_G11",
+  "generated_at": "2025-12-12T10:00:00Z",
+  "pages": [
+    {
+      "station": 1,
+      "tasks": [
+        {
+          "step": 1,
+          "task_id": 1,
+          "instruction": "Unpack chassis from shipping container",
+          "image_url": "/images/wi/chassis_unpack.png",
+          "duration_sec": 30,
+          "tools_required": ["Cutting pliers"],
+          "safety_notes": ["Wear gloves", "Check for damage"]
+        }
+      ]
+    }
+  ],
+  "download_url": "/wi/WI_DL360_G11_001/download?format=pdf",
+  "status": "generated"
+}
+```
+
+---
+
+## MVS Time Study Module (REQ #9) ⚠️ **IMPLEMENTATION**
+
+### Overview
+
+Method Time Measurement (MTM) / MOST calculation module for accurate operation time estimation per part per workstation.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    MVS Time Study Module                     │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Input Analysis                                       │  │
+│  │  - Video recording of operation                       │  │
+│  │  - Body sensor data (MediaPipe)                       │  │
+│  │  - Equipment usage logs                               │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                     │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Motion Analysis Engine                               │  │
+│  │  - Auto-detect motion_type (finger/wrist/elbow/arm)   │  │
+│  │  - Classify TMU (Time Measurement Units)              │  │
+│  │  - Apply MOST sequence models                         │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                     │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Time Calculation                                     │  │
+│  │  - Base MTM time per motion                           │  │
+│  │  - Apply fatigue allowance (10-15%)                   │  │
+│  │  - Apply skill factor (0.8-1.2x)                      │  │
+│  │  - Generate standard time                             │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### MTM/MOST Motion Codes
+
+| Motion Type | TMU Base | Description | Example Actions |
+|-------------|----------|-------------|-----------------|
+| `finger` | 2-5 TMU | Fine motor | Pick SMD, press button |
+| `wrist` | 5-10 TMU | Rotation | Turn screw, adjust knob |
+| `elbow` | 10-20 TMU | Forearm | Reach nearby, short carry |
+| `arm` | 20-40 TMU | Full arm | Reach far, long carry |
+| `body` | 40-80 TMU | Trunk/legs | Bend, walk, lift |
+
+> 1 TMU = 0.036 seconds
+
+### API Endpoints
+
+```
+# Time Study
+POST /mvs/analyze-video                # Upload video for analysis
+GET  /mvs/analysis/{analysis_id}       # Get analysis results
+POST /mvs/calculate-time               # Calculate standard time from motions
+
+# Motion Library
+GET  /mvs/motion-library               # List all motion codes
+POST /mvs/motion-library               # Add custom motion code
+```
+
+### Implementation: Motion Analyzer
+
+```python
+# src/services/mvs_analyzer.py
+from enum import Enum
+from typing import List, Dict
+import mediapipe as mp
+
+class MotionType(Enum):
+    FINGER = "finger"
+    WRIST = "wrist"
+    ELBOW = "elbow"
+    ARM = "arm"
+    BODY = "body"
+
+# TMU lookup table (1 TMU = 0.036 sec)
+TMU_BASE = {
+    MotionType.FINGER: {"reach": 2, "grasp": 4, "release": 2},
+    MotionType.WRIST: {"turn": 6, "apply_pressure": 8},
+    MotionType.ELBOW: {"reach": 12, "move": 15, "position": 10},
+    MotionType.ARM: {"reach": 25, "move": 30, "position": 20},
+    MotionType.BODY: {"bend": 45, "walk_step": 15, "lift": 60}
+}
+
+class MVSAnalyzer:
+    def __init__(self):
+        self.pose = mp.solutions.pose.Pose()
+        
+    def analyze_video(self, video_path: str) -> Dict:
+        """Analyze video and extract motion sequences"""
+        motions = []
+        # Process video frames with MediaPipe
+        # Classify each motion by joint displacement
+        # Return motion sequence with TMU calculations
+        return {
+            "motions": motions,
+            "total_tmu": sum(m["tmu"] for m in motions),
+            "standard_time_sec": sum(m["tmu"] for m in motions) * 0.036
+        }
+    
+    def calculate_standard_time(
+        self, 
+        motions: List[Dict],
+        fatigue_allowance: float = 0.12,
+        skill_factor: float = 1.0
+    ) -> Dict:
+        """Calculate standard time with allowances"""
+        base_tmu = sum(m["tmu"] for m in motions)
+        adjusted_tmu = base_tmu * (1 + fatigue_allowance) * skill_factor
+        return {
+            "base_tmu": base_tmu,
+            "fatigue_allowance": fatigue_allowance,
+            "skill_factor": skill_factor,
+            "adjusted_tmu": adjusted_tmu,
+            "standard_time_sec": adjusted_tmu * 0.036,
+            "standard_time_ms": int(adjusted_tmu * 36)
+        }
+```
+
+---
+
+## External System Integration Hub ⚠️ **IMPLEMENTATION**
+
+### Overview
+
+Central integration hub for connecting with external enterprise systems (BDC, APS, PDM, SO/MPS).
+
+### Integration Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    External System Integration Hub                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │                         Adapter Registry                            ││
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────────┐   ││
+│  │  │   BDC   │ │   APS   │ │   PDM   │ │  SO/MPS │ │  Inventory  │   ││
+│  │  │ Adapter │ │ Adapter │ │ Adapter │ │ Adapter │ │   Adapter   │   ││
+│  │  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └──────┬──────┘   ││
+│  └───────┼──────────┼──────────┼──────────┼───────────────┼───────────┘│
+│          │          │          │          │               │             │
+│  ┌───────▼──────────▼──────────▼──────────▼───────────────▼───────────┐│
+│  │                    Integration Service Layer                        ││
+│  │  - Connection pooling                                               ││
+│  │  - Request/response transformation                                  ││
+│  │  - Error handling & retry logic                                     ││
+│  │  - Data caching (Redis)                                             ││
+│  │  - Audit logging                                                    ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────┘
+                    │                │               │
+          ┌────────▼────────┐ ┌─────▼─────┐ ┌──────▼──────┐
+          │   SAP S/4HANA   │ │   Oracle  │ │  Custom ERP │
+          │    (BDC, SO)    │ │   (APS)   │ │    (MES)    │
+          └─────────────────┘ └───────────┘ └─────────────┘
+```
+
+### BDC Integration (REQ #44b)
+
+Basic Data Catalog - Expected cycle time and production standards.
+
+**Phase Assignment:** Phase 3 - External Integration  
+**Implementation Priority:** High (Core dependency for Live Monitoring)  
+**Target Sprint:** Sprint 5 (Phase 3)
+
+```python
+# src/integrations/bdc_adapter.py
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional
+import httpx
+
+class BDCAdapter:
+    """BDC (Basic Data Catalog) Integration Adapter"""
+    
+    def __init__(self, config: Dict):
+        self.base_url = config["bdc_api_url"]
+        self.api_key = config["bdc_api_key"]
+        self.client = httpx.AsyncClient(timeout=30.0)
+    
+    async def get_expected_cycle_time(
+        self, 
+        part_id: str, 
+        station_type: str
+    ) -> Dict:
+        """Retrieve expected cycle time from BDC"""
+        response = await self.client.get(
+            f"{self.base_url}/cycle-times",
+            params={"part_id": part_id, "station_type": station_type},
+            headers={"Authorization": f"Bearer {self.api_key}"}
+        )
+        return response.json()
+    
+    async def sync_cycle_times(self, site_id: str) -> Dict:
+        """Sync all cycle times for a site"""
+        response = await self.client.get(
+            f"{self.base_url}/sites/{site_id}/cycle-times/bulk"
+        )
+        return {
+            "synced_count": len(response.json()["items"]),
+            "last_sync": datetime.utcnow().isoformat()
+        }
+```
+
+**API Endpoints:**
+```
+POST /integrations/bdc/sync              # Sync cycle times from BDC
+GET  /integrations/bdc/cycle-time/{part_id}  # Get expected cycle time
+POST /integrations/bdc/alerts            # Configure cycle time alerts
+```
+
+### BDC Alert Configuration ⚠️ REQ #44 (Enhanced)
+
+**Purpose**: Configure alerts based on Expected Cycle Time from BDC to notify when actual production deviates from standards.
+
+#### Expected CT Alert Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│              BDC → Alert Configuration Flow (REQ #44)                   │
+│                                                                          │
+│  ┌─────────────┐                ┌─────────────────────────┐             │
+│  │    BDC      │                │  Line Balance System    │             │
+│  │  (External) │                │                         │             │
+│  └──────┬──────┘                │  ┌──────────────────┐  │             │
+│         │                       │  │ Expected CT Cache│  │             │
+│         │ 1. Sync Expected CT   │  │ (Redis)          │  │             │
+│         ├──────────────────────►│  └────────┬─────────┘  │             │
+│         │                       │           │             │             │
+│         │                       │  ┌────────▼─────────┐  │             │
+│  ┌──────▼──────┐                │  │ Alert Threshold  │  │             │
+│  │    MES      │                │  │ Calculator       │  │             │
+│  │  (External) │                │  │ (+20%, +50%)     │  │             │
+│  └──────┬──────┘                │  └────────┬─────────┘  │             │
+│         │                       │           │             │             │
+│         │ 2. Actual CT Stream   │  ┌────────▼─────────┐  │             │
+│         ├──────────────────────►│  │ Alert Evaluator  │  │             │
+│         │   (MQTT/Kafka)        │  │ (Compare Actual  │  │             │
+│         │                       │  │  vs Expected)    │  │             │
+│                                 │  └────────┬─────────┘  │             │
+│                                 │           │             │             │
+│                                 │  ┌────────▼─────────┐  │             │
+│                                 │  │ Notification     │◄─┼── Email     │
+│                                 │  │ Service          │◄─┼── Slack     │
+│                                 │  │                  │◄─┼── Dashboard │
+│                                 │  └──────────────────┘  │             │
+│                                 └─────────────────────────┘             │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### BDC Expected CT Data Schema (Placeholder)
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BDC Expected Cycle Time",
+  "description": "Expected cycle time data from Basic Data Catalog",
+  "type": "object",
+  "required": ["part_id", "station_type", "expected_ct_seconds"],
+  "properties": {
+    "part_id": {
+      "type": "string",
+      "description": "Product/Part identifier from BDC"
+    },
+    "station_type": {
+      "type": "string",
+      "description": "Station category (assembly, test, pack)"
+    },
+    "expected_ct_seconds": {
+      "type": "number",
+      "description": "Standard cycle time in seconds"
+    },
+    "tolerance_percent": {
+      "type": "number",
+      "default": 10,
+      "description": "Acceptable variance percentage"
+    },
+    "effective_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "source_system": {
+      "type": "string",
+      "default": "BDC",
+      "description": "Source system identifier"
+    }
+  }
+}
+```
+
+#### Alert Configuration Service
+
+```python
+# src/services/bdc_alert_service.py
+from typing import Dict, List, Optional
+from pydantic import BaseModel
+from datetime import datetime
+
+class BDCAlertConfig(BaseModel):
+    """Configuration for BDC-linked cycle time alerts"""
+    config_id: str
+    site_id: str
+    product_family: str
+    
+    # Threshold multipliers (applied to BDC Expected CT)
+    warning_multiplier: float = 1.2      # +20% triggers warning
+    critical_multiplier: float = 1.5     # +50% triggers critical
+    
+    # Notification settings
+    warning_recipients: List[str] = []   # email addresses
+    critical_recipients: List[str] = []
+    slack_channel: Optional[str] = None
+    teams_webhook: Optional[str] = None
+    
+    # Alert behavior
+    cooldown_seconds: int = 300          # 5 min between repeated alerts
+    require_acknowledgment: bool = True
+    auto_escalate_after_minutes: int = 15
+    
+    enabled: bool = True
+    created_at: datetime = None
+    updated_at: datetime = None
+
+
+class BDCAlertService:
+    """Service for managing BDC-linked alerts (REQ #44)"""
+    
+    def __init__(self, bdc_adapter, notification_service, cache):
+        self.bdc = bdc_adapter
+        self.notify = notification_service
+        self.cache = cache  # Redis cache
+    
+    async def configure_product_alerts(
+        self,
+        site_id: str,
+        product_family: str,
+        config: BDCAlertConfig
+    ) -> Dict:
+        """Configure alerts for a product family based on BDC Expected CT"""
+        # 1. Fetch expected CT from BDC
+        expected_cts = await self.bdc.get_expected_cycle_times(
+            site_id=site_id,
+            product_family=product_family
+        )
+        
+        # 2. Calculate thresholds per station
+        thresholds = []
+        for ct_data in expected_cts:
+            thresholds.append({
+                "station_type": ct_data["station_type"],
+                "expected_ct": ct_data["expected_ct_seconds"],
+                "warning_threshold": ct_data["expected_ct_seconds"] * config.warning_multiplier,
+                "critical_threshold": ct_data["expected_ct_seconds"] * config.critical_multiplier
+            })
+        
+        # 3. Store in cache for real-time evaluation
+        cache_key = f"bdc_thresholds:{site_id}:{product_family}"
+        await self.cache.set(cache_key, thresholds, ex=3600)
+        
+        return {
+            "config_id": config.config_id,
+            "thresholds_configured": len(thresholds),
+            "status": "active"
+        }
+    
+    async def evaluate_cycle_time(
+        self,
+        site_id: str,
+        product_family: str,
+        station_type: str,
+        actual_ct_seconds: float
+    ) -> Optional[Dict]:
+        """Evaluate actual CT against BDC thresholds and trigger alerts"""
+        cache_key = f"bdc_thresholds:{site_id}:{product_family}"
+        thresholds = await self.cache.get(cache_key)
+        
+        if not thresholds:
+            return None  # No configuration
+        
+        station_threshold = next(
+            (t for t in thresholds if t["station_type"] == station_type),
+            None
+        )
+        
+        if not station_threshold:
+            return None
+        
+        # Evaluate
+        expected = station_threshold["expected_ct"]
+        deviation_pct = ((actual_ct_seconds - expected) / expected) * 100
+        
+        if actual_ct_seconds >= station_threshold["critical_threshold"]:
+            await self._trigger_alert(
+                level="critical",
+                site_id=site_id,
+                station_type=station_type,
+                expected=expected,
+                actual=actual_ct_seconds,
+                deviation_pct=deviation_pct
+            )
+            return {"alert_level": "critical", "deviation_pct": deviation_pct}
+        
+        elif actual_ct_seconds >= station_threshold["warning_threshold"]:
+            await self._trigger_alert(
+                level="warning",
+                site_id=site_id,
+                station_type=station_type,
+                expected=expected,
+                actual=actual_ct_seconds,
+                deviation_pct=deviation_pct
+            )
+            return {"alert_level": "warning", "deviation_pct": deviation_pct}
+        
+        return {"alert_level": "ok", "deviation_pct": deviation_pct}
+```
+
+#### BDC Alert API Endpoints
+
+```
+# BDC Alert Configuration APIs
+POST /integrations/bdc/alerts/configure      # Configure product alerts
+GET  /integrations/bdc/alerts/config/{id}    # Get alert configuration
+PUT  /integrations/bdc/alerts/config/{id}    # Update configuration
+DELETE /integrations/bdc/alerts/config/{id}  # Disable alerts
+
+# Threshold Management
+GET  /integrations/bdc/thresholds/{site_id}  # Get all thresholds for site
+POST /integrations/bdc/thresholds/refresh    # Force refresh from BDC
+GET  /integrations/bdc/thresholds/history    # Threshold change history
+
+# Alert Status & History
+GET  /integrations/bdc/alerts/active         # List active alerts
+POST /integrations/bdc/alerts/{id}/acknowledge  # Acknowledge alert
+GET  /integrations/bdc/alerts/history        # Alert history with filters
+```
+
+#### BDC Connection Placeholder Configuration
+
+```yaml
+# config/integrations/bdc.yaml (Placeholder)
+bdc:
+  enabled: true
+  connection:
+    # Replace with actual BDC endpoint when available
+    base_url: "${BDC_API_URL:-http://bdc-placeholder.local/api/v1}"
+    api_key: "${BDC_API_KEY}"
+    timeout_seconds: 30
+  
+  sync:
+    # Schedule for syncing Expected CT from BDC
+    cron_schedule: "0 */4 * * *"  # Every 4 hours
+    full_sync_on_startup: true
+    retry_attempts: 3
+    retry_delay_seconds: 60
+  
+  cache:
+    ttl_seconds: 14400  # 4 hours
+    refresh_on_miss: true
+  
+  # Placeholder: BDC system not yet integrated
+  placeholder_mode: true
+  placeholder_data_path: "data/bdc_expected_ct_mock.json"
+```
+
+---
+
+### SO/MPS Integration (Product Demand - Unassigned REQ)
+
+Sales Order / Master Production Schedule integration for demand data.
+
+```python
+# src/integrations/so_mps_adapter.py
+class SOMPSAdapter:
+    """SO/MPS Integration for Product Demand"""
+    
+    async def get_demand_forecast(
+        self, 
+        site_id: str, 
+        product_family: str,
+        date_range: tuple
+    ) -> Dict:
+        """Get demand forecast from SO/MPS"""
+        response = await self.client.post(
+            f"{self.base_url}/demand-forecast",
+            json={
+                "site_id": site_id,
+                "product_family": product_family,
+                "start_date": date_range[0],
+                "end_date": date_range[1]
+            }
+        )
+        return response.json()
+    
+    async def get_work_order_priority(
+        self, 
+        work_order_ids: List[str]
+    ) -> Dict:
+        """Get priority rankings for work orders"""
+        response = await self.client.post(
+            f"{self.base_url}/work-orders/priority",
+            json={"work_order_ids": work_order_ids}
+        )
+        return response.json()
+```
+
+**API Endpoints:**
+```
+GET  /integrations/so/demand            # Get demand from SO
+POST /integrations/mps/sync             # Sync with MPS
+GET  /integrations/mps/capacity-plan    # Get capacity plan
+```
+
+### PDM Integration (Technical Specs) ⚠️ **PLACEHOLDER**
+
+Product Data Management for technical specifications, process standards, and assembly documentation.
+
+**Phase Assignment:** Phase 3 - External Integration  
+**Implementation Priority:** Medium  
+**Target Sprint:** Sprint 7-8 (Phase 3)  
+**Status:** Placeholder - Awaiting PDM system API specification
+
+#### Overview
+
+The PDM (Product Data Management) integration enables the Line Balance system to:
+- Retrieve technical specifications for products and components
+- Access process standards and quality requirements
+- Import assembly instructions and work element details
+- Sync CAD metadata for workstation layout planning
+
+#### PDM Data Model
+
+```python
+# src/models/pdm_data.py
+from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
+from enum import Enum
+from datetime import datetime
+
+class ESDClass(str, Enum):
+    """Electrostatic Discharge sensitivity classification"""
+    CLASS_0 = "class_0"      # <250V - Most sensitive
+    CLASS_1 = "class_1"      # <500V
+    CLASS_2 = "class_2"      # <1000V
+    CLASS_3 = "class_3"      # <2000V
+    NOT_SENSITIVE = "none"   # No ESD requirements
+
+class ProcessStandard(str, Enum):
+    """Industry process standards"""
+    IPC_A_610 = "IPC-A-610"         # Acceptability of Electronic Assemblies
+    IPC_J_STD_001 = "J-STD-001"     # Soldering Standards
+    IPC_7711_7721 = "IPC-7711/7721" # Rework Standards
+    ISO_9001 = "ISO-9001"           # Quality Management
+    ISO_14001 = "ISO-14001"         # Environmental Management
+    IATF_16949 = "IATF-16949"       # Automotive Quality
+
+class ProductTechnicalSpec(BaseModel):
+    """Technical specifications from PDM"""
+    part_id: str
+    part_number: str
+    revision: str
+    description: str
+    
+    # Physical dimensions
+    dimensions: Dict[str, float] = {
+        "length_mm": 0.0,
+        "width_mm": 0.0,
+        "height_mm": 0.0
+    }
+    weight_kg: float = 0.0
+    
+    # Material properties
+    primary_material: str = ""
+    material_code: str = ""
+    surface_finish: str = ""
+    
+    # Quality requirements
+    tolerance_mm: float = 0.1
+    esd_class: ESDClass = ESDClass.NOT_SENSITIVE
+    special_handling: List[str] = []
+    
+    # Standards compliance
+    process_standards: List[ProcessStandard] = []
+    test_requirements: List[str] = []
+    
+    # PDM metadata
+    pdm_document_id: str = ""
+    last_modified: Optional[datetime] = None
+    change_notice: Optional[str] = None
+
+class ProcessRequirement(BaseModel):
+    """Process requirements from PDM for a part"""
+    part_id: str
+    
+    # Tool requirements
+    required_tools: List[Dict[str, str]] = []  # [{"tool_id": "T001", "name": "Torque Driver M3"}]
+    
+    # Operator requirements
+    required_certifications: List[str] = []
+    min_skill_level: int = 1  # 1-5 scale
+    
+    # Quality checkpoints
+    quality_checkpoints: List[Dict[str, str]] = []
+    measurement_points: List[Dict[str, float]] = []
+    
+    # Test requirements
+    test_sequence: List[str] = []
+    test_duration_seconds: float = 0.0
+    
+    # Assembly instructions
+    work_instruction_id: Optional[str] = None
+    assembly_video_url: Optional[str] = None
+
+class CADMetadata(BaseModel):
+    """CAD file metadata from PDM for layout planning"""
+    part_id: str
+    cad_file_type: str = "STEP"  # STEP, IGES, DXF, etc.
+    file_path: str = ""
+    
+    # Bounding box for layout planning
+    bounding_box: Dict[str, float] = {}
+    
+    # Assembly points
+    assembly_origin: Dict[str, float] = {}
+    fixture_points: List[Dict[str, float]] = []
+    
+    # Visualization
+    thumbnail_url: Optional[str] = None
+    viewer_url: Optional[str] = None
+```
+
+#### PDM Adapter (Placeholder)
+
+```python
+# src/integrations/pdm_adapter.py
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional
+import httpx
+
+class PDMAdapterBase(ABC):
+    """Base class for PDM system integration"""
+    
+    @abstractmethod
+    async def get_product_specs(self, part_id: str) -> ProductTechnicalSpec:
+        """Get technical specifications for a part"""
+        pass
+    
+    @abstractmethod
+    async def get_process_requirements(self, part_id: str) -> ProcessRequirement:
+        """Get process/assembly requirements for a part"""
+        pass
+    
+    @abstractmethod
+    async def get_cad_metadata(self, part_id: str) -> CADMetadata:
+        """Get CAD file metadata for layout planning"""
+        pass
+    
+    @abstractmethod
+    async def sync_product_catalog(self, product_family: str) -> Dict:
+        """Sync all products in a family from PDM"""
+        pass
+
+class StubPDMAdapter(PDMAdapterBase):
+    """
+    Placeholder adapter for development/testing.
+    Replace with actual PDM integration (e.g., Teamcenter, Windchill, Arena).
+    """
+    
+    def __init__(self, config: dict):
+        self.config = config
+        self._mock_data = self._load_mock_data()
+    
+    def _load_mock_data(self) -> Dict:
+        """Load mock PDM data for development"""
+        return {
+            "DL360_G11": {
+                "specs": {
+                    "part_id": "DL360_G11",
+                    "part_number": "P56951-B21",
+                    "revision": "A02",
+                    "description": "ProLiant DL360 Gen11 Server",
+                    "dimensions": {"length_mm": 650, "width_mm": 450, "height_mm": 44},
+                    "weight_kg": 15.5,
+                    "esd_class": "class_2",
+                    "process_standards": ["IPC-A-610", "J-STD-001"],
+                    "special_handling": ["ESD_SENSITIVE", "FRAGILE_COMPONENTS"]
+                },
+                "process": {
+                    "required_tools": [
+                        {"tool_id": "TORQ_T10", "name": "Torque Driver T10 5Nm"},
+                        {"tool_id": "ESD_STRAP", "name": "ESD Wrist Strap"},
+                        {"tool_id": "THERMAL_PASTE", "name": "Thermal Paste Applicator"}
+                    ],
+                    "required_certifications": ["IPC_CERTIFIED", "ESD_CERTIFIED"],
+                    "min_skill_level": 3,
+                    "quality_checkpoints": [
+                        {"id": "QC001", "type": "visual", "desc": "Visual inspection"},
+                        {"id": "QC002", "type": "torque", "desc": "Torque verification"},
+                        {"id": "QC003", "type": "test", "desc": "POST test"}
+                    ],
+                    "test_sequence": ["POWER_ON_TEST", "BIOS_CONFIG", "BURN_IN_4H"],
+                    "test_duration_seconds": 14400
+                },
+                "cad": {
+                    "cad_file_type": "STEP",
+                    "bounding_box": {"x": 650, "y": 450, "z": 44},
+                    "fixture_points": [
+                        {"x": 50, "y": 50, "z": 0},
+                        {"x": 600, "y": 50, "z": 0}
+                    ]
+                }
+            },
+            "DL380_G11": {
+                "specs": {
+                    "part_id": "DL380_G11",
+                    "part_number": "P56959-B21",
+                    "revision": "A01",
+                    "description": "ProLiant DL380 Gen11 Server",
+                    "dimensions": {"length_mm": 750, "width_mm": 450, "height_mm": 88},
+                    "weight_kg": 28.0,
+                    "esd_class": "class_2",
+                    "process_standards": ["IPC-A-610", "J-STD-001"],
+                    "special_handling": ["ESD_SENSITIVE", "HEAVY_LIFT"]
+                },
+                "process": {
+                    "required_tools": [
+                        {"tool_id": "TORQ_T10", "name": "Torque Driver T10 5Nm"},
+                        {"tool_id": "TORQ_T15", "name": "Torque Driver T15 8Nm"},
+                        {"tool_id": "ESD_STRAP", "name": "ESD Wrist Strap"},
+                        {"tool_id": "LIFT_ASSIST", "name": "Lift Assist Device"}
+                    ],
+                    "required_certifications": ["IPC_CERTIFIED", "ESD_CERTIFIED", "LIFT_CERTIFIED"],
+                    "min_skill_level": 4,
+                    "test_sequence": ["POWER_ON_TEST", "BIOS_CONFIG", "RAID_CONFIG", "BURN_IN_24H"],
+                    "test_duration_seconds": 86400
+                }
+            }
+        }
+    
+    async def get_product_specs(self, part_id: str) -> Dict:
+        """Return mock specifications (placeholder)"""
+        if part_id in self._mock_data:
+            return self._mock_data[part_id]["specs"]
+        return {
+            "part_id": part_id,
+            "status": "not_found",
+            "message": f"Part {part_id} not in mock data. Add to PDM when integrated."
+        }
+    
+    async def get_process_requirements(self, part_id: str) -> Dict:
+        """Return mock process requirements (placeholder)"""
+        if part_id in self._mock_data:
+            return self._mock_data[part_id]["process"]
+        return {
+            "part_id": part_id,
+            "required_tools": [],
+            "status": "placeholder"
+        }
+    
+    async def get_cad_metadata(self, part_id: str) -> Dict:
+        """Return mock CAD metadata (placeholder)"""
+        if part_id in self._mock_data:
+            return self._mock_data[part_id].get("cad", {})
+        return {"part_id": part_id, "status": "cad_not_available"}
+    
+    async def sync_product_catalog(self, product_family: str) -> Dict:
+        """Mock sync operation (placeholder)"""
+        return {
+            "product_family": product_family,
+            "synced_count": len(self._mock_data),
+            "status": "placeholder_mode",
+            "last_sync": datetime.utcnow().isoformat()
+        }
+```
+
+#### PDM Service Layer
+
+```python
+# src/services/pdm_service.py
+class PDMService:
+    """Service layer for PDM integration"""
+    
+    def __init__(self, pdm_adapter: PDMAdapterBase, cache):
+        self.pdm = pdm_adapter
+        self.cache = cache
+    
+    async def get_assembly_constraints(self, part_id: str) -> Dict:
+        """
+        Get assembly constraints for line balance optimization.
+        Translates PDM data into optimizer constraints.
+        """
+        specs = await self.pdm.get_product_specs(part_id)
+        process = await self.pdm.get_process_requirements(part_id)
+        
+        return {
+            "part_id": part_id,
+            "constraints": {
+                "requires_esd_workstation": specs.get("esd_class") not in ["none", None],
+                "requires_heavy_lift": "HEAVY_LIFT" in specs.get("special_handling", []),
+                "min_operator_skill": process.get("min_skill_level", 1),
+                "required_certifications": process.get("required_certifications", []),
+                "test_duration_seconds": process.get("test_duration_seconds", 0),
+                "tool_requirements": [t["tool_id"] for t in process.get("required_tools", [])]
+            },
+            "workstation_requirements": {
+                "min_width_mm": specs.get("dimensions", {}).get("width_mm", 0) + 200,
+                "min_depth_mm": specs.get("dimensions", {}).get("length_mm", 0) + 100,
+                "esd_mat_required": specs.get("esd_class") in ["class_0", "class_1", "class_2"],
+                "lift_assist_required": specs.get("weight_kg", 0) > 20
+            }
+        }
+    
+    async def validate_station_capability(
+        self,
+        station_id: str,
+        part_id: str,
+        station_config: Dict
+    ) -> Dict:
+        """
+        Validate if a station can handle a part based on PDM requirements.
+        Used in line balance optimization validation.
+        """
+        constraints = await self.get_assembly_constraints(part_id)
+        
+        validations = []
+        is_capable = True
+        
+        # Check ESD
+        if constraints["constraints"]["requires_esd_workstation"]:
+            has_esd = station_config.get("esd_capable", False)
+            validations.append({
+                "check": "esd_workstation",
+                "required": True,
+                "station_has": has_esd,
+                "pass": has_esd
+            })
+            if not has_esd:
+                is_capable = False
+        
+        # Check size
+        ws_req = constraints["workstation_requirements"]
+        station_width = station_config.get("width_mm", 0)
+        station_depth = station_config.get("depth_mm", 0)
+        
+        if station_width < ws_req["min_width_mm"]:
+            validations.append({
+                "check": "width",
+                "required": ws_req["min_width_mm"],
+                "station_has": station_width,
+                "pass": False
+            })
+            is_capable = False
+        
+        return {
+            "station_id": station_id,
+            "part_id": part_id,
+            "is_capable": is_capable,
+            "validations": validations
+        }
+```
+
+#### API Endpoints for PDM Integration
+
+```yaml
+# PDM Integration APIs
+GET /integrations/pdm/specs/{part_id}:
+  description: Get technical specifications from PDM
+  response:
+    part_id: string
+    part_number: string
+    dimensions: object
+    weight_kg: number
+    esd_class: string
+    process_standards: string[]
+
+GET /integrations/pdm/process/{part_id}:
+  description: Get process requirements from PDM
+  response:
+    required_tools: object[]
+    required_certifications: string[]
+    min_skill_level: integer
+    quality_checkpoints: object[]
+    test_sequence: string[]
+
+GET /integrations/pdm/cad/{part_id}:
+  description: Get CAD metadata for layout planning
+  response:
+    cad_file_type: string
+    bounding_box: object
+    fixture_points: object[]
+    viewer_url: string
+
+GET /integrations/pdm/constraints/{part_id}:
+  description: Get translated assembly constraints for optimizer
+  response:
+    constraints: object
+    workstation_requirements: object
+
+POST /integrations/pdm/sync:
+  description: Sync product catalog from PDM
+  request:
+    product_family: string
+  response:
+    synced_count: integer
+    status: string
+    last_sync: datetime
+
+POST /integrations/pdm/validate-station:
+  description: Validate station capability for a part
+  request:
+    station_id: string
+    part_id: string
+    station_config: object
+  response:
+    is_capable: boolean
+    validations: object[]
+```
+
+#### PDM Configuration (Placeholder)
+
+```yaml
+# config/integrations/pdm.yaml
+pdm:
+  enabled: true
+  adapter_type: "stub"  # Change to actual PDM type when available
+  
+  # Supported PDM systems (future)
+  # adapter_type: "teamcenter" | "windchill" | "arena" | "enovia"
+  
+  # Placeholder mode
+  placeholder_mode: true
+  mock_data_path: "data/pdm_mock_catalog.json"
+  
+  # Connection settings (placeholder)
+  connection:
+    base_url: "${PDM_API_URL:-http://pdm-placeholder.local/api/v1}"
+    api_key: "${PDM_API_KEY}"
+    timeout_seconds: 60
+  
+  sync:
+    cron_schedule: "0 2 * * *"  # Daily at 2 AM
+    product_families: ["DL360", "DL380", "ML350"]
+    include_cad_metadata: true
+  
+  cache:
+    ttl_seconds: 86400  # 24 hours
+    refresh_on_miss: true
+  
+  # Field mappings from PDM to Line Balance
+  field_mappings:
+    part_number: "item_number"
+    dimensions: "physical_attributes.dimensions"
+    weight: "physical_attributes.weight"
+    esd_class: "handling.esd_classification"
+```
+
+---
+
+### MPS Capacity Algorithm (Unassigned REQ)
+
+Master Production Schedule capacity calculation.
+
+```python
+# src/services/mps_capacity_service.py
+class MPSCapacityService:
+    """MPS-based Capacity Planning"""
+    
+    def calculate_capacity_load(
+        self,
+        demand: List[Dict],
+        available_hours: float,
+        available_workers: int,
+        uph_by_product: Dict[str, float]
+    ) -> Dict:
+        """Calculate capacity load vs available capacity"""
+        total_required_hours = 0
+        for item in demand:
+            uph = uph_by_product.get(item["product"], 10)
+            hours_needed = item["quantity"] / uph
+            total_required_hours += hours_needed
+        
+        available_capacity = available_hours * available_workers
+        load_pct = (total_required_hours / available_capacity) * 100
+        
+        return {
+            "total_required_hours": total_required_hours,
+            "available_capacity_hours": available_capacity,
+            "load_percentage": load_pct,
+            "status": "overload" if load_pct > 100 else "ok",
+            "gap_hours": max(0, total_required_hours - available_capacity),
+            "recommendations": self._generate_recommendations(load_pct)
+        }
+    
+    def _generate_recommendations(self, load_pct: float) -> List[str]:
+        if load_pct > 120:
+            return ["Add shift", "Hire temporary workers", "Outsource"]
+        elif load_pct > 100:
+            return ["Overtime", "Rebalance lines"]
+        else:
+            return ["Capacity sufficient"]
+```
+
+**API Endpoints:**
+```
+POST /capacity/calculate                # Calculate capacity load
+GET  /capacity/analysis/{site_id}       # Get capacity analysis
+POST /capacity/what-if                  # What-if scenario analysis
+```
+
+### Equipment & Material Availability (Unassigned REQs)
+
+```python
+# src/integrations/equipment_adapter.py
+class EquipmentAdapter:
+    """Equipment availability and scheduling"""
+    
+    async def get_equipment_status(self, equipment_ids: List[str]) -> Dict:
+        """Get real-time equipment status"""
+        return {
+            "equipment": [
+                {
+                    "id": "TORQUE_DRV_01",
+                    "status": "available",
+                    "location": "station_3",
+                    "next_maintenance": "2026-01-15"
+                }
+            ]
+        }
+    
+    async def check_equipment_conflicts(
+        self, 
+        schedule: List[Dict]
+    ) -> Dict:
+        """Check for equipment scheduling conflicts"""
+        # Detect if same equipment needed at same time
+        return {"conflicts": [], "warnings": []}
+
+# src/integrations/inventory_adapter.py
+class InventoryAdapter:
+    """Raw material availability check"""
+    
+    async def check_material_availability(
+        self, 
+        bom: List[Dict],
+        quantity: int
+    ) -> Dict:
+        """Check if materials available for production"""
+        return {
+            "all_available": True,
+            "shortages": [],
+            "lead_time_days": 0
+        }
+```
+
+**API Endpoints:**
+```
+GET  /integrations/equipment/status          # Equipment status
+POST /integrations/equipment/schedule        # Schedule equipment
+GET  /integrations/inventory/check           # Check material availability
+POST /integrations/inventory/reserve         # Reserve materials
+```
+
+---
+
+## Work Order Priority Scheduling (Unassigned REQ) ⚠️ **IMPLEMENTATION**
+
+### Priority Algorithm
+
+```python
+# src/services/priority_scheduler.py
+from enum import IntEnum
+from typing import List, Dict
+from datetime import datetime
+
+class PriorityLevel(IntEnum):
+    CRITICAL = 1    # Customer escalation, production stop
+    HIGH = 2        # Key customer, tight deadline  
+    MEDIUM = 3      # Normal production
+    LOW = 4         # Internal, flexible deadline
+
+class PriorityScheduler:
+    """Work order priority scheduling"""
+    
+    def calculate_priority_score(self, work_order: Dict) -> float:
+        """Calculate composite priority score (lower = higher priority)"""
+        base_priority = work_order.get("priority", PriorityLevel.MEDIUM)
+        
+        # Due date urgency (0-100 scale)
+        due_date = datetime.fromisoformat(work_order["due_date"])
+        days_until_due = (due_date - datetime.now()).days
+        urgency = max(0, 100 - days_until_due * 5)
+        
+        # Customer importance weight
+        customer_weight = work_order.get("customer_weight", 1.0)
+        
+        # Quantity factor (larger orders slightly higher priority)
+        quantity_factor = min(1.2, 1 + work_order.get("quantity", 0) / 1000)
+        
+        score = (base_priority * 100 - urgency) / customer_weight / quantity_factor
+        return score
+    
+    def sort_work_orders(self, work_orders: List[Dict]) -> List[Dict]:
+        """Sort work orders by priority"""
+        for wo in work_orders:
+            wo["priority_score"] = self.calculate_priority_score(wo)
+        return sorted(work_orders, key=lambda x: x["priority_score"])
+```
+
+### API Endpoints
+
+```
+POST /scheduling/prioritize             # Calculate priorities
+GET  /scheduling/queue                  # Get prioritized queue
+PUT  /scheduling/override/{wo_id}       # Manual priority override
+```
+
+---
+
+## Testing Stage Definition (Unassigned REQ) ⚠️ **IMPLEMENTATION**
+
+### Test Stage Schema
+
+```python
+# src/models/test_stage.py
+from sqlalchemy import Column, Integer, String, JSON, Boolean
+from src.utils.db import Base
+
+class TestStage(Base):
+    __tablename__ = "test_stages"
+    
+    id = Column(Integer, primary_key=True)
+    stage_name = Column(String(100), nullable=False)
+    stage_type = Column(String(50))  # functional, stress, burn_in, qa
+    duration_sec = Column(Integer)
+    required_equipment = Column(JSON)  # ["ICT_TESTER", "THERMAL_CHAMBER"]
+    pass_criteria = Column(JSON)
+    is_mandatory = Column(Boolean, default=True)
+    sequence_order = Column(Integer)
+
+# Test stage definitions
+TEST_STAGES = {
+    "POST": {
+        "type": "functional",
+        "duration_sec": 30,
+        "equipment": ["POST_TESTER"],
+        "criteria": {"bios_boot": True, "memory_detect": True}
+    },
+    "BURN_IN": {
+        "type": "stress",
+        "duration_sec": 86400,  # 24 hours
+        "equipment": ["BURN_IN_RACK"],
+        "criteria": {"temp_stable": True, "no_errors": True}
+    },
+    "QA_VISUAL": {
+        "type": "qa",
+        "duration_sec": 120,
+        "equipment": [],
+        "criteria": {"cosmetic_pass": True, "label_correct": True}
+    }
+}
+```
+
+### API Endpoints
+
+```
+GET  /test-stages                       # List all test stages
+POST /test-stages                       # Create test stage
+GET  /test-stages/{product_family}      # Get stages for product
+POST /test-stages/assign                # Assign stages to work order
+```
+
+---
+
+## Product Support Matrix (REQ #47b, #48b) ⚠️ **IMPLEMENTATION**
+
+### Product Extension Roadmap Assumptions
+
+| Product Family | Status | Target Phase | Data Files | Notes |
+|---------------|--------|--------------|------------|-------|
+| DL360 G10 | ✅ Supported | Phase 1 | Available | Base model |
+| DL360 G11 | ✅ Supported | Phase 1 | Available | Current |
+| DL360 G12 | 🚧 Planned | Phase 1.5 | Pending | REQ #47b |
+| ML350 G11 | ✅ Supported | Phase 1 | Available | |
+| DL320 G11 | ✅ Supported | Phase 1 | Available | Extra hard |
+| DL325 G11 | ✅ Supported | Phase 1 | Available | Extra hard |
+| TAO Products | 🚧 Planned | Phase 2+ | Pending | REQ #48b |
+
+### Product Configuration
+
+```python
+# src/config/product_support.py
+SUPPORTED_PRODUCTS = {
+    "DL360_G10": {
+        "family": "DL360",
+        "generation": "G10",
+        "status": "active",
+        "complexity": "medium",
+        "data_files": ["SWS DL360 G10 (Easy)", "SWS DL360 G10 (Hard)"],
+        "variants": ["Easy", "Hard"]
+    },
+    "DL360_G11": {
+        "family": "DL360",
+        "generation": "G11",
+        "status": "active",
+        "complexity": "medium",
+        "data_files": ["TOUCHTIME ML350 G11"],
+        "variants": ["Assembly", "Kitting", "Packing", "Tests"]
+    },
+    "DL360_G12": {
+        "family": "DL360",
+        "generation": "G12",
+        "status": "planned",
+        "target_release": "2026-Q1",
+        "data_files": [],
+        "notes": "REQ #47b - Awaiting product data"
+    }
+}
+
+# Product extension API
+async def register_new_product(product_config: Dict) -> Dict:
+    """Register a new product for line balance support"""
+    required_fields = ["family", "generation", "data_files"]
+    # Validate config
+    # Add to product registry
+    # Trigger data validation
+    return {"status": "registered", "product_id": f"{product_config['family']}_{product_config['generation']}"}
+```
+
+### API Endpoints
+
+```
+GET  /products                          # List supported products
+POST /products                          # Register new product
+GET  /products/{product_id}/status      # Get product support status
+POST /products/{product_id}/data        # Upload product data files
+```
+
+---
+
+## 2D Layout Image Management (REQ #18b) ⚠️ **IMPLEMENTATION**
+
+### Image Storage Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  2D Layout Image Management                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Image Upload Service                                 │  │
+│  │  - Accept: PNG, JPG, SVG, DXF, DWG                    │  │
+│  │  - Max size: 50MB                                     │  │
+│  │  - Auto-resize for thumbnails                         │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                     │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Storage Layer                                        │  │
+│  │  - S3/MinIO for images                                │  │
+│  │  - PostgreSQL for metadata                            │  │
+│  │  - Redis for cache                                    │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                     │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Layout Overlay Service                               │  │
+│  │  - Station hotspots on image                          │  │
+│  │  - Clickable regions                                  │  │
+│  │  - Real-time status overlay                           │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Database Schema
+
+```sql
+CREATE TABLE layout_images (
+    id SERIAL PRIMARY KEY,
+    site_id VARCHAR(50) NOT NULL,
+    layout_name VARCHAR(100) NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    thumbnail_url VARCHAR(500),
+    file_type VARCHAR(10),
+    file_size_bytes INTEGER,
+    dimensions JSONB,  -- {"width": 1920, "height": 1080}
+    scale_factor FLOAT,  -- pixels per meter
+    station_hotspots JSONB,  -- [{"station_id": 1, "x": 100, "y": 200, "radius": 30}]
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    created_by VARCHAR(100)
+);
+```
+
+### API Endpoints
+
+```
+POST /layouts/images/upload             # Upload layout image
+GET  /layouts/images/{site_id}          # Get layout images for site
+PUT  /layouts/images/{image_id}/hotspots  # Update station hotspots
+DELETE /layouts/images/{image_id}       # Delete layout image
+```
+
+---
+
+## Station Type Configuration (REQ #46b) ⚠️ **IMPLEMENTATION**
+
+### Station Type Definitions
+
+```python
+# src/models/station_type.py
+from enum import Enum
+from typing import Dict
+
+class StationType(Enum):
+    FIXED = "fixed"           # Single-person, fixed workload
+    ADJUSTABLE = "adjustable"  # Flexible workload, can absorb overflow
+    MULTI_PERSON = "multi_person"  # Designed for multiple workers
+    AUTOMATED = "automated"    # Robot/machine station
+    HYBRID = "hybrid"          # Human + automation
+
+STATION_TYPE_CONFIG = {
+    StationType.FIXED: {
+        "max_workers": 1,
+        "can_absorb_overflow": False,
+        "parallel_tasks": False,
+        "requires_certification": False
+    },
+    StationType.ADJUSTABLE: {
+        "max_workers": 4,
+        "can_absorb_overflow": True,
+        "parallel_tasks": False,
+        "requires_certification": False
+    },
+    StationType.MULTI_PERSON: {
+        "max_workers": 8,
+        "can_absorb_overflow": True,
+        "parallel_tasks": True,
+        "requires_certification": True
+    },
+    StationType.AUTOMATED: {
+        "max_workers": 0,
+        "can_absorb_overflow": False,
+        "parallel_tasks": True,
+        "requires_certification": False,
+        "requires_maintenance_schedule": True
+    },
+    StationType.HYBRID: {
+        "max_workers": 2,
+        "can_absorb_overflow": True,
+        "parallel_tasks": True,
+        "requires_certification": True
+    }
+}
+```
+
+### CSV Extension
+
+Add to `config.csv`:
+```csv
+parameter,value
+station_1_type,fixed
+station_2_type,adjustable
+station_3_type,multi_person
+station_4_type,automated
+```
+
+### API Endpoints
+
+```
+GET  /stations/types                    # List station types
+PUT  /stations/{station_id}/type        # Set station type
+GET  /stations/{site_id}/config         # Get station configuration
+```
+
+---
+
+## Per-Site Station Configuration (REQ #41) ⚠️ **IMPLEMENTATION**
+
+### Site-Station Configuration Workflow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Per-Site Station Configuration                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Site Configuration Manager                           │  │
+│  │  - Define stations per site                           │  │
+│  │  - Set station types, capacities                      │  │
+│  │  - Configure equipment assignments                    │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                     │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Station Template Library                             │  │
+│  │  - Pre-defined station templates                      │  │
+│  │  - Copy from other sites                              │  │
+│  │  - Bulk import/export                                 │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                     │
+│  ┌─────────────────────▼─────────────────────────────────┐  │
+│  │  Validation & Constraints                             │  │
+│  │  - Equipment availability check                       │  │
+│  │  - Worker capacity validation                         │  │
+│  │  - Layout consistency check                           │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Database Schema
+
+```sql
+CREATE TABLE site_station_configs (
+    id SERIAL PRIMARY KEY,
+    site_id VARCHAR(50) NOT NULL,
+    station_id VARCHAR(50) NOT NULL,
+    station_name VARCHAR(100),
+    station_type VARCHAR(20) NOT NULL,
+    max_workers INTEGER DEFAULT 1,
+    equipment_ids JSONB,  -- ["TORQUE_DRV_01", "SCANNER_02"]
+    position JSONB,  -- {"x": 100, "y": 200, "rotation": 0}
+    dimensions JSONB,  -- {"width": 2.0, "depth": 1.5}
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(site_id, station_id)
+);
+```
+
+### API Endpoints
+
+```
+GET  /sites/{site_id}/stations          # List stations for site
+POST /sites/{site_id}/stations          # Add station to site
+PUT  /sites/{site_id}/stations/{station_id}  # Update station config
+DELETE /sites/{site_id}/stations/{station_id}  # Remove station
+POST /sites/{site_id}/stations/import   # Bulk import stations
+GET  /sites/{site_id}/stations/export   # Export station config
+POST /sites/{site_id}/stations/copy-from/{source_site_id}  # Copy from another site
+```
+
+---
+
+## Skill & Manpower Mapping (Unassigned REQ) ⚠️ **IMPLEMENTATION**
+
+### Worker Skill Model
+
+```python
+# src/models/worker_skill.py
+from sqlalchemy import Column, Integer, String, JSON, Boolean, ForeignKey
+from src.utils.db import Base
+
+class WorkerSkill(Base):
+    __tablename__ = "worker_skills"
+    
+    id = Column(Integer, primary_key=True)
+    worker_id = Column(String(50), nullable=False)
+    skill_code = Column(String(50), nullable=False)  # SOLDERING, IPC_610, ESD
+    proficiency_level = Column(Integer)  # 1-5
+    certified = Column(Boolean, default=False)
+    certification_date = Column(DateTime)
+    expiry_date = Column(DateTime)
+
+class TaskSkillRequirement(Base):
+    __tablename__ = "task_skill_requirements"
+    
+    id = Column(Integer, primary_key=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"))
+    skill_code = Column(String(50), nullable=False)
+    min_proficiency = Column(Integer, default=1)
+    is_mandatory = Column(Boolean, default=True)
+```
+
+### Skill Matching Service
+
+```python
+# src/services/skill_matcher.py
+class SkillMatcher:
+    """Match workers to tasks based on skills"""
+    
+    def find_qualified_workers(
+        self, 
+        task_id: int, 
+        available_workers: List[str]
+    ) -> List[Dict]:
+        """Find workers qualified for a task"""
+        requirements = self.get_task_requirements(task_id)
+        qualified = []
+        for worker_id in available_workers:
+            skills = self.get_worker_skills(worker_id)
+            if self._meets_requirements(skills, requirements):
+                qualified.append({
+                    "worker_id": worker_id,
+                    "match_score": self._calculate_match_score(skills, requirements)
+                })
+        return sorted(qualified, key=lambda x: x["match_score"], reverse=True)
+    
+    def get_skill_gaps(self, site_id: str) -> Dict:
+        """Identify skill gaps at a site"""
+        required_skills = self.get_site_required_skills(site_id)
+        available_skills = self.get_site_available_skills(site_id)
+        gaps = []
+        for skill, count_needed in required_skills.items():
+            count_available = available_skills.get(skill, 0)
+            if count_available < count_needed:
+                gaps.append({
+                    "skill": skill,
+                    "needed": count_needed,
+                    "available": count_available,
+                    "gap": count_needed - count_available
+                })
+        return {"gaps": gaps, "training_recommendations": self._recommend_training(gaps)}
+```
+
+### API Endpoints
+
+```
+GET  /workers/{worker_id}/skills        # Get worker skills
+POST /workers/{worker_id}/skills        # Add skill to worker
+GET  /tasks/{task_id}/skill-requirements  # Get task requirements
+POST /skill-matching/qualified-workers  # Find qualified workers
+GET  /sites/{site_id}/skill-gaps        # Identify skill gaps
+```
+
+---
+
+## Production Scheduling with Gantt Output ⚠️ **IMPLEMENTATION**
+
+### Overview
+
+Detailed production scheduling with start/end time estimation per work order and Gantt chart data format for visualization.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   Production Scheduling Flow                                │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Input:                                                               │  │
+│  │    - Work Orders with quantities & due dates                          │  │
+│  │    - Line capacity (UPH per line)                                     │  │
+│  │    - Available shifts & hours                                         │  │
+│  │    - Priority constraints                                             │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Scheduling Engine                                                    │  │
+│  │    - Sort by priority + due date                                      │  │
+│  │    - Allocate to lines based on capacity                              │  │
+│  │    - Calculate start/end times                                        │  │
+│  │    - Handle changeover times                                          │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Output:                                                              │  │
+│  │    - Gantt chart data (JSON)                                          │  │
+│  │    - Work order timeline                                              │  │
+│  │    - Resource utilization                                             │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Models
+
+```python
+from datetime import datetime, timedelta
+from pydantic import BaseModel
+from typing import List, Optional
+from enum import Enum
+
+class ScheduleStatus(str, Enum):
+    SCHEDULED = "scheduled"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    DELAYED = "delayed"
+    ON_HOLD = "on_hold"
+
+class WorkOrderSchedule(BaseModel):
+    work_order_id: str
+    product_sku: str
+    quantity: int
+    line_id: str
+    
+    # Timing
+    scheduled_start: datetime
+    scheduled_end: datetime
+    actual_start: Optional[datetime] = None
+    actual_end: Optional[datetime] = None
+    
+    # Duration breakdown
+    setup_time_minutes: int = 0
+    production_time_minutes: int
+    changeover_time_minutes: int = 0
+    
+    # Status
+    status: ScheduleStatus = ScheduleStatus.SCHEDULED
+    completion_percentage: float = 0.0
+
+class GanttTask(BaseModel):
+    """Single task for Gantt chart rendering"""
+    id: str
+    name: str
+    resource: str  # Line ID
+    start: datetime
+    end: datetime
+    progress: float  # 0-100
+    dependencies: List[str] = []
+    color: Optional[str] = None
+    tooltip: Optional[str] = None
+
+class GanttChartData(BaseModel):
+    """Complete Gantt chart data structure"""
+    tasks: List[GanttTask]
+    resources: List[dict]  # Lines/stations
+    time_range: dict  # {start, end}
+    metadata: dict
+```
+
+### Scheduling Service
+
+```python
+# src/services/production_scheduler.py
+from datetime import datetime, timedelta
+from typing import List, Dict
+
+class ProductionScheduler:
+    """Schedule work orders and generate Gantt data"""
+    
+    def __init__(self, site_config: dict):
+        self.site_config = site_config
+        self.shift_hours = site_config.get("shift_hours", 8)
+        self.shifts_per_day = site_config.get("shifts_per_day", 2)
+        self.changeover_minutes = site_config.get("default_changeover", 30)
+    
+    def schedule_work_orders(
+        self,
+        work_orders: List[dict],
+        lines: List[dict],
+        start_date: datetime
+    ) -> List[WorkOrderSchedule]:
+        """Schedule work orders across available lines"""
+        
+        # Sort by priority (critical first) then due date
+        sorted_orders = sorted(
+            work_orders,
+            key=lambda x: (
+                -self._priority_value(x.get("priority", "medium")),
+                x.get("due_date", datetime.max)
+            )
+        )
+        
+        # Track line availability
+        line_availability = {
+            line["line_id"]: start_date for line in lines
+        }
+        
+        schedules = []
+        for order in sorted_orders:
+            # Find best line (earliest available)
+            best_line = min(line_availability, key=line_availability.get)
+            line_start = line_availability[best_line]
+            
+            # Get line capacity
+            line_uph = next(
+                l["uph"] for l in lines if l["line_id"] == best_line
+            )
+            
+            # Calculate production time
+            production_hours = order["quantity"] / line_uph
+            production_minutes = int(production_hours * 60)
+            
+            # Calculate end time (respecting shift boundaries)
+            end_time = self._calculate_end_time(
+                line_start,
+                production_minutes + self.changeover_minutes
+            )
+            
+            schedule = WorkOrderSchedule(
+                work_order_id=order["work_order_id"],
+                product_sku=order["sku"],
+                quantity=order["quantity"],
+                line_id=best_line,
+                scheduled_start=line_start,
+                scheduled_end=end_time,
+                production_time_minutes=production_minutes,
+                changeover_time_minutes=self.changeover_minutes
+            )
+            schedules.append(schedule)
+            
+            # Update line availability
+            line_availability[best_line] = end_time
+        
+        return schedules
+    
+    def generate_gantt_data(
+        self,
+        schedules: List[WorkOrderSchedule]
+    ) -> GanttChartData:
+        """Convert schedules to Gantt chart format"""
+        
+        tasks = []
+        for schedule in schedules:
+            task = GanttTask(
+                id=schedule.work_order_id,
+                name=f"{schedule.work_order_id} ({schedule.product_sku})",
+                resource=schedule.line_id,
+                start=schedule.scheduled_start,
+                end=schedule.scheduled_end,
+                progress=schedule.completion_percentage,
+                color=self._status_color(schedule.status),
+                tooltip=f"Qty: {schedule.quantity}, Duration: {schedule.production_time_minutes}min"
+            )
+            tasks.append(task)
+        
+        # Extract unique resources
+        resources = [
+            {"id": r, "name": f"Line {r}"} 
+            for r in set(s.line_id for s in schedules)
+        ]
+        
+        # Calculate time range
+        if schedules:
+            time_range = {
+                "start": min(s.scheduled_start for s in schedules),
+                "end": max(s.scheduled_end for s in schedules)
+            }
+        else:
+            time_range = {"start": datetime.now(), "end": datetime.now()}
+        
+        return GanttChartData(
+            tasks=tasks,
+            resources=resources,
+            time_range=time_range,
+            metadata={"total_orders": len(schedules)}
+        )
+    
+    def _priority_value(self, priority: str) -> int:
+        return {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(priority, 2)
+    
+    def _status_color(self, status: ScheduleStatus) -> str:
+        colors = {
+            ScheduleStatus.SCHEDULED: "#3498db",
+            ScheduleStatus.IN_PROGRESS: "#f39c12",
+            ScheduleStatus.COMPLETED: "#27ae60",
+            ScheduleStatus.DELAYED: "#e74c3c",
+            ScheduleStatus.ON_HOLD: "#95a5a6"
+        }
+        return colors.get(status, "#3498db")
+    
+    def _calculate_end_time(
+        self, 
+        start: datetime, 
+        duration_minutes: int
+    ) -> datetime:
+        """Calculate end time respecting shift boundaries"""
+        # Simplified: add duration directly
+        # Production implementation should handle shift breaks
+        return start + timedelta(minutes=duration_minutes)
+```
+
+### API Endpoints
+
+```yaml
+POST /production-schedule:
+  description: Generate production schedule for work orders
+  request:
+    site_id: string
+    work_orders:
+      - work_order_id: string
+        sku: string
+        quantity: integer
+        due_date: date
+        priority: string
+    start_date: datetime
+  response:
+    schedules: WorkOrderSchedule[]
+    gantt_data: GanttChartData
+    summary:
+      total_orders: integer
+      total_production_hours: float
+      utilization_by_line: object
+
+GET /production-schedule/{site_id}/gantt:
+  description: Get Gantt chart data for site
+  parameters:
+    start_date: date
+    end_date: date
+    line_ids: string[] (optional)
+  response:
+    gantt_data: GanttChartData
+
+PUT /production-schedule/{work_order_id}:
+  description: Update schedule status
+  request:
+    status: ScheduleStatus
+    actual_start: datetime (optional)
+    actual_end: datetime (optional)
+```
+
+### Gantt Chart JSON Output Example
+
+```json
+{
+  "tasks": [
+    {
+      "id": "WO_001",
+      "name": "WO_001 (DL360-G11-001)",
+      "resource": "LINE_A",
+      "start": "2025-12-15T08:00:00Z",
+      "end": "2025-12-15T16:30:00Z",
+      "progress": 0,
+      "color": "#3498db",
+      "tooltip": "Qty: 150, Duration: 480min"
+    },
+    {
+      "id": "WO_002",
+      "name": "WO_002 (DL360-G11-002)",
+      "resource": "LINE_A",
+      "start": "2025-12-15T17:00:00Z",
+      "end": "2025-12-16T09:30:00Z",
+      "progress": 0,
+      "color": "#3498db",
+      "tooltip": "Qty: 200, Duration: 600min"
+    }
+  ],
+  "resources": [
+    {"id": "LINE_A", "name": "Line A"},
+    {"id": "LINE_B", "name": "Line B"}
+  ],
+  "time_range": {
+    "start": "2025-12-15T08:00:00Z",
+    "end": "2025-12-20T18:00:00Z"
+  },
+  "metadata": {
+    "total_orders": 2,
+    "generated_at": "2025-12-13T10:00:00Z"
+  }
+}
+```
+
+---
+
+## Equipment Availability & Monitoring ⚠️ **IMPLEMENTATION**
+
+### Overview
+
+Track equipment idle rate, cycle time per machine, and real-time equipment status for capacity planning.
+
+### Data Models
+
+```python
+from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional, List
+from enum import Enum
+
+class EquipmentStatus(str, Enum):
+    RUNNING = "running"
+    IDLE = "idle"
+    MAINTENANCE = "maintenance"
+    BREAKDOWN = "breakdown"
+    SETUP = "setup"
+
+class Equipment(BaseModel):
+    equipment_id: str
+    equipment_type: str  # conveyor, robot, tester, etc.
+    station_code: str
+    line_id: str
+    
+    # Capacity
+    rated_cycle_time_seconds: float
+    actual_cycle_time_seconds: Optional[float] = None
+    
+    # Availability
+    status: EquipmentStatus = EquipmentStatus.IDLE
+    last_status_change: datetime
+    
+    # Metrics (rolling 24h)
+    idle_rate_pct: float = 0.0
+    utilization_pct: float = 0.0
+    oee_pct: float = 0.0  # Overall Equipment Effectiveness
+
+class EquipmentMetrics(BaseModel):
+    equipment_id: str
+    timestamp: datetime
+    
+    # Time breakdown (minutes in last hour)
+    running_time: float
+    idle_time: float
+    maintenance_time: float
+    breakdown_time: float
+    
+    # Performance
+    cycle_count: int
+    avg_cycle_time: float
+    min_cycle_time: float
+    max_cycle_time: float
+    
+    # Derived
+    idle_rate: float  # idle_time / total_time
+    performance_rate: float  # rated_cycle / actual_cycle
+```
+
+### Equipment Monitoring Service
+
+```python
+# src/services/equipment_monitor.py
+from datetime import datetime, timedelta
+from typing import Dict, List
+
+class EquipmentMonitor:
+    """Monitor equipment status and calculate availability metrics"""
+    
+    def __init__(self, db_session):
+        self.db = db_session
+    
+    def get_equipment_status(self, equipment_id: str) -> Equipment:
+        """Get current equipment status"""
+        # Query from database
+        pass
+    
+    def update_status(
+        self, 
+        equipment_id: str, 
+        new_status: EquipmentStatus,
+        reason: Optional[str] = None
+    ):
+        """Update equipment status and log transition"""
+        equipment = self.get_equipment_status(equipment_id)
+        old_status = equipment.status
+        
+        # Log status transition
+        self._log_status_change(equipment_id, old_status, new_status, reason)
+        
+        # Update current status
+        equipment.status = new_status
+        equipment.last_status_change = datetime.now()
+        self.db.commit()
+    
+    def calculate_metrics(
+        self, 
+        equipment_id: str, 
+        period_hours: int = 24
+    ) -> EquipmentMetrics:
+        """Calculate equipment metrics for time period"""
+        
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=period_hours)
+        
+        # Get status logs for period
+        logs = self._get_status_logs(equipment_id, start_time, end_time)
+        
+        # Calculate time in each status
+        time_breakdown = self._calculate_time_breakdown(logs, start_time, end_time)
+        total_time = sum(time_breakdown.values())
+        
+        # Get cycle data
+        cycles = self._get_cycle_data(equipment_id, start_time, end_time)
+        
+        return EquipmentMetrics(
+            equipment_id=equipment_id,
+            timestamp=end_time,
+            running_time=time_breakdown.get("running", 0),
+            idle_time=time_breakdown.get("idle", 0),
+            maintenance_time=time_breakdown.get("maintenance", 0),
+            breakdown_time=time_breakdown.get("breakdown", 0),
+            cycle_count=len(cycles),
+            avg_cycle_time=sum(cycles) / len(cycles) if cycles else 0,
+            min_cycle_time=min(cycles) if cycles else 0,
+            max_cycle_time=max(cycles) if cycles else 0,
+            idle_rate=time_breakdown.get("idle", 0) / total_time if total_time > 0 else 0,
+            performance_rate=self._calculate_performance_rate(equipment_id, cycles)
+        )
+    
+    def get_line_availability(self, line_id: str) -> Dict:
+        """Get aggregated availability for all equipment on a line"""
+        equipment_list = self._get_line_equipment(line_id)
+        
+        metrics = []
+        for eq in equipment_list:
+            metrics.append(self.calculate_metrics(eq.equipment_id))
+        
+        return {
+            "line_id": line_id,
+            "equipment_count": len(equipment_list),
+            "avg_idle_rate": sum(m.idle_rate for m in metrics) / len(metrics) if metrics else 0,
+            "avg_utilization": 1 - sum(m.idle_rate for m in metrics) / len(metrics) if metrics else 0,
+            "bottleneck_equipment": max(metrics, key=lambda m: m.avg_cycle_time).equipment_id if metrics else None,
+            "equipment_metrics": metrics
+        }
+    
+    def _calculate_performance_rate(self, equipment_id: str, cycles: List[float]) -> float:
+        """Calculate performance rate vs rated cycle time"""
+        equipment = self.get_equipment_status(equipment_id)
+        if not cycles or not equipment.rated_cycle_time_seconds:
+            return 0.0
+        avg_actual = sum(cycles) / len(cycles)
+        return equipment.rated_cycle_time_seconds / avg_actual if avg_actual > 0 else 0
+```
+
+### API Endpoints
+
+```yaml
+GET /equipment/{equipment_id}:
+  description: Get equipment details and current status
+  response:
+    equipment: Equipment
+    current_metrics: EquipmentMetrics
+
+PUT /equipment/{equipment_id}/status:
+  description: Update equipment status
+  request:
+    status: EquipmentStatus
+    reason: string (optional)
+  response:
+    success: boolean
+    previous_status: EquipmentStatus
+
+GET /equipment/{equipment_id}/metrics:
+  description: Get equipment metrics for time period
+  parameters:
+    period_hours: integer (default: 24)
+  response:
+    metrics: EquipmentMetrics
+    trend: object  # Comparison with previous period
+
+GET /lines/{line_id}/equipment-availability:
+  description: Get aggregated equipment availability for line
+  response:
+    line_id: string
+    equipment_count: integer
+    avg_idle_rate: float
+    avg_utilization: float
+    bottleneck_equipment: string
+    equipment_list: Equipment[]
+
+POST /equipment/cycle-complete:
+  description: Record equipment cycle completion (from MES/PLC)
+  request:
+    equipment_id: string
+    cycle_time_seconds: float
+    timestamp: datetime
+    unit_id: string (optional)
+```
+
+### Database Schema
+
+```sql
+CREATE TABLE equipment (
+    id SERIAL PRIMARY KEY,
+    equipment_id VARCHAR(50) UNIQUE NOT NULL,
+    equipment_type VARCHAR(50) NOT NULL,
+    station_code VARCHAR(50),
+    line_id VARCHAR(50),
+    rated_cycle_time_seconds DECIMAL(10,2),
+    status VARCHAR(20) DEFAULT 'idle',
+    last_status_change TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE equipment_status_log (
+    id SERIAL PRIMARY KEY,
+    equipment_id VARCHAR(50) REFERENCES equipment(equipment_id),
+    old_status VARCHAR(20),
+    new_status VARCHAR(20),
+    reason TEXT,
+    changed_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE equipment_cycles (
+    id SERIAL PRIMARY KEY,
+    equipment_id VARCHAR(50) REFERENCES equipment(equipment_id),
+    cycle_time_seconds DECIMAL(10,3),
+    unit_id VARCHAR(50),
+    recorded_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for time-series queries
+CREATE INDEX idx_equipment_cycles_time ON equipment_cycles(equipment_id, recorded_at);
+```
+
+---
+
+## Raw Material Availability (MRP/WMS Integration) ⚠️ **IMPLEMENTATION** (Placeholder)
+
+### Overview
+
+Integration stub for MRP (Material Requirements Planning) and WMS (Warehouse Management System) to check raw material availability and procurement status.
+
+### Integration Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   Raw Material Integration (Stub)                           │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Line Balance System                                                  │  │
+│  │    └─→ Material Availability Adapter                                  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│               ┌───────────────┴───────────────┐                             │
+│               ▼                               ▼                             │
+│  ┌─────────────────────────┐     ┌─────────────────────────┐               │
+│  │  MRP System (External)  │     │  WMS System (External)  │               │
+│  │  - SAP MM              │     │  - Oracle WMS           │               │
+│  │  - Oracle MRP          │     │  - Manhattan WMS        │               │
+│  │  - Custom ERP          │     │  - Custom WMS           │               │
+│  └─────────────────────────┘     └─────────────────────────┘               │
+│                                                                             │
+│  Note: Actual integration requires customer-specific configuration          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Models
+
+```python
+from pydantic import BaseModel
+from datetime import date
+from typing import Optional, List
+from enum import Enum
+
+class ProcurementStatus(str, Enum):
+    AVAILABLE = "available"        # In stock
+    ORDERED = "ordered"            # PO created, awaiting delivery
+    IN_TRANSIT = "in_transit"      # Shipped, en route
+    PARTIAL = "partial"            # Partial quantity available
+    NOT_AVAILABLE = "not_available"  # Not in stock, no PO
+
+class MaterialAvailability(BaseModel):
+    material_id: str
+    material_name: str
+    unit_of_measure: str
+    
+    # Quantity
+    required_quantity: float
+    available_quantity: float
+    shortage_quantity: float
+    
+    # Procurement
+    procurement_status: ProcurementStatus
+    expected_delivery_date: Optional[date] = None
+    
+    # Impact
+    can_start_production: bool
+    blocking_reason: Optional[str] = None
+
+class BOMComponent(BaseModel):
+    """Bill of Materials component"""
+    component_id: str
+    component_name: str
+    quantity_per_unit: float
+    lead_time_days: int
+    availability: Optional[MaterialAvailability] = None
+```
+
+### Material Availability Adapter (Stub)
+
+```python
+# src/adapters/material_adapter.py
+from typing import List, Dict, Optional
+from abc import ABC, abstractmethod
+
+class MaterialAdapterBase(ABC):
+    """Base class for MRP/WMS integration adapters"""
+    
+    @abstractmethod
+    def check_availability(
+        self, 
+        material_ids: List[str], 
+        quantities: Dict[str, float],
+        site_id: str
+    ) -> List[MaterialAvailability]:
+        """Check material availability for production"""
+        pass
+    
+    @abstractmethod
+    def get_procurement_status(
+        self, 
+        material_id: str
+    ) -> ProcurementStatus:
+        """Get current procurement status"""
+        pass
+
+class StubMaterialAdapter(MaterialAdapterBase):
+    """
+    Stub adapter for development/testing.
+    Replace with actual MRP/WMS integration in production.
+    """
+    
+    def __init__(self, config: dict):
+        self.config = config
+        # Simulated inventory data
+        self._mock_inventory = {
+            "MAT_001": {"available": 1000, "status": "available"},
+            "MAT_002": {"available": 50, "status": "partial"},
+            "MAT_003": {"available": 0, "status": "ordered", "eta": "2025-12-20"},
+        }
+    
+    def check_availability(
+        self, 
+        material_ids: List[str], 
+        quantities: Dict[str, float],
+        site_id: str
+    ) -> List[MaterialAvailability]:
+        """Stub: Return mock availability data"""
+        results = []
+        for mat_id in material_ids:
+            inv = self._mock_inventory.get(mat_id, {"available": 0, "status": "not_available"})
+            required = quantities.get(mat_id, 0)
+            available = inv["available"]
+            
+            results.append(MaterialAvailability(
+                material_id=mat_id,
+                material_name=f"Material {mat_id}",
+                unit_of_measure="EA",
+                required_quantity=required,
+                available_quantity=available,
+                shortage_quantity=max(0, required - available),
+                procurement_status=ProcurementStatus(inv["status"]),
+                expected_delivery_date=inv.get("eta"),
+                can_start_production=available >= required,
+                blocking_reason="Insufficient inventory" if available < required else None
+            ))
+        
+        return results
+    
+    def get_procurement_status(self, material_id: str) -> ProcurementStatus:
+        """Stub: Return mock procurement status"""
+        inv = self._mock_inventory.get(material_id, {})
+        return ProcurementStatus(inv.get("status", "not_available"))
+
+# Factory function for adapter selection
+def get_material_adapter(adapter_type: str, config: dict) -> MaterialAdapterBase:
+    """
+    Factory to create appropriate material adapter.
+    
+    Supported types:
+    - 'stub': Development/testing stub
+    - 'sap': SAP MM integration (TODO)
+    - 'oracle': Oracle MRP integration (TODO)
+    - 'custom': Custom ERP integration (TODO)
+    """
+    adapters = {
+        "stub": StubMaterialAdapter,
+        # Future integrations:
+        # "sap": SAPMaterialAdapter,
+        # "oracle": OracleMaterialAdapter,
+    }
+    
+    adapter_class = adapters.get(adapter_type, StubMaterialAdapter)
+    return adapter_class(config)
+```
+
+### API Endpoints
+
+```yaml
+POST /materials/check-availability:
+  description: Check material availability for work order
+  request:
+    work_order_id: string
+    bom_components:
+      - component_id: string
+        quantity_required: float
+    site_id: string
+  response:
+    work_order_id: string
+    overall_status: string  # ready, partial, blocked
+    material_availability: MaterialAvailability[]
+    blocking_materials: string[]
+    earliest_start_date: date
+
+GET /materials/{material_id}/status:
+  description: Get material procurement status
+  response:
+    material_id: string
+    procurement_status: ProcurementStatus
+    available_quantity: float
+    pending_orders: object[]
+    expected_deliveries: object[]
+```
+
+### Integration Configuration
+
+```yaml
+# config/integrations.yaml
+material_integration:
+  adapter_type: "stub"  # Change to 'sap', 'oracle', etc. for production
+  
+  # SAP MM configuration (placeholder)
+  sap:
+    host: "sap-server.example.com"
+    client: "100"
+    username: "${SAP_USERNAME}"
+    password: "${SAP_PASSWORD}"
+    rfc_function: "BAPI_MATERIAL_AVAILABILITY"
+  
+  # Oracle MRP configuration (placeholder)
+  oracle:
+    connection_string: "${ORACLE_CONN_STRING}"
+    schema: "MRP"
+    availability_query: "SELECT * FROM material_availability WHERE ..."
+```
+
+---
+
+## MES Real-Time Integration ⚠️ **IMPLEMENTATION**
+
+### Overview
+
+Define MES data JSON schema and WebSocket/MQTT protocol for real-time production data integration.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   MES Integration Architecture                              │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  MES / SCADA Systems                                                │    │
+│  │  - Ignition, Wonderware, AVEVA                                      │    │
+│  │  - Custom PLC integrations                                          │    │
+│  └────────────────────────────┬────────────────────────────────────────┘    │
+│                               │ MQTT / OPC-UA                               │
+│                               ▼                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Message Broker                                                     │    │
+│  │  - MQTT Broker (Mosquitto, HiveMQ)                                  │    │
+│  │  - Kafka (for high-volume)                                          │    │
+│  └────────────────────────────┬────────────────────────────────────────┘    │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Line Balance MES Adapter                                           │    │
+│  │  - Message parsing & validation                                     │    │
+│  │  - Data normalization                                               │    │
+│  │  - Event routing                                                    │    │
+│  └────────────────────────────┬────────────────────────────────────────┘    │
+│                               │                                             │
+│               ┌───────────────┼───────────────┐                             │
+│               ▼               ▼               ▼                             │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐               │
+│  │ Cycle Time      │ │ Equipment       │ │ Production      │               │
+│  │ Tracking        │ │ Status          │ │ Counts          │               │
+│  └─────────────────┘ └─────────────────┘ └─────────────────┘               │
+│                                                                             │
+│  WebSocket → Frontend Dashboard (Real-time updates)                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### MES Data JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MES Event Schema",
+  "type": "object",
+  "required": ["event_type", "timestamp", "source_id", "payload"],
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "cycle_complete",
+        "unit_started",
+        "unit_completed",
+        "equipment_status_change",
+        "quality_check",
+        "defect_reported",
+        "station_alarm"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_id": {
+      "type": "string",
+      "description": "Station or equipment identifier"
+    },
+    "site_id": {
+      "type": "string"
+    },
+    "line_id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific data"
+    }
+  }
+}
+```
+
+### Event Payload Schemas
+
+```python
+from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional, Dict, Any
+
+class CycleCompletePayload(BaseModel):
+    """Payload for cycle_complete event"""
+    station_code: str
+    cycle_time_seconds: float
+    unit_id: str
+    work_order_id: str
+    operator_id: Optional[str] = None
+    
+class UnitStartedPayload(BaseModel):
+    """Payload for unit_started event"""
+    station_code: str
+    unit_id: str
+    work_order_id: str
+    expected_cycle_time: Optional[float] = None
+
+class UnitCompletedPayload(BaseModel):
+    """Payload for unit_completed event"""
+    station_code: str
+    unit_id: str
+    work_order_id: str
+    total_cycle_time: float
+    passed_quality: bool
+    
+class EquipmentStatusPayload(BaseModel):
+    """Payload for equipment_status_change event"""
+    equipment_id: str
+    previous_status: str
+    new_status: str
+    reason_code: Optional[str] = None
+    reason_text: Optional[str] = None
+
+class QualityCheckPayload(BaseModel):
+    """Payload for quality_check event"""
+    unit_id: str
+    check_type: str  # visual, measurement, functional
+    result: str  # pass, fail, rework
+    measurements: Optional[Dict[str, Any]] = None
+    defect_codes: Optional[list] = None
+```
+
+### MQTT Protocol
+
+```yaml
+# MQTT Topic Structure
+topics:
+  # Production events (from MES)
+  mes/production/{site_id}/{line_id}/cycle:
+    description: Cycle completion events
+    qos: 1
+    payload: CycleCompletePayload
+    
+  mes/production/{site_id}/{line_id}/unit:
+    description: Unit tracking events
+    qos: 1
+    payload: UnitStartedPayload | UnitCompletedPayload
+    
+  mes/equipment/{site_id}/{equipment_id}/status:
+    description: Equipment status changes
+    qos: 1
+    payload: EquipmentStatusPayload
+    retain: true  # Keep last status
+    
+  mes/quality/{site_id}/{line_id}/check:
+    description: Quality check results
+    qos: 1
+    payload: QualityCheckPayload
+    
+  # Commands (to MES)
+  linebalance/command/{site_id}/{line_id}:
+    description: Commands from Line Balance to MES
+    qos: 2
+    payload:
+      command: string  # start_order, pause_line, etc.
+      parameters: object
+```
+
+### WebSocket Protocol (Frontend)
+
+```python
+# src/websocket/mes_handler.py
+from fastapi import WebSocket
+from typing import Dict, Set
+import json
+
+class MESWebSocketManager:
+    """Manage WebSocket connections for MES real-time data"""
+    
+    def __init__(self):
+        self.active_connections: Dict[str, Set[WebSocket]] = {}
+    
+    async def connect(self, websocket: WebSocket, site_id: str):
+        await websocket.accept()
+        if site_id not in self.active_connections:
+            self.active_connections[site_id] = set()
+        self.active_connections[site_id].add(websocket)
+    
+    async def disconnect(self, websocket: WebSocket, site_id: str):
+        self.active_connections[site_id].discard(websocket)
+    
+    async def broadcast_to_site(self, site_id: str, message: dict):
+        """Broadcast MES event to all connected clients for a site"""
+        if site_id in self.active_connections:
+            for connection in self.active_connections[site_id]:
+                await connection.send_json(message)
+    
+    async def process_mes_event(self, event: dict):
+        """Process incoming MES event and broadcast to frontend"""
+        site_id = event.get("site_id")
+        
+        # Transform to frontend format
+        frontend_message = {
+            "type": event["event_type"],
+            "timestamp": event["timestamp"],
+            "data": event["payload"],
+            "source": event["source_id"]
+        }
+        
+        await self.broadcast_to_site(site_id, frontend_message)
+
+# FastAPI WebSocket endpoint
+mes_manager = MESWebSocketManager()
+
+@app.websocket("/ws/mes/{site_id}")
+async def mes_websocket(websocket: WebSocket, site_id: str):
+    await mes_manager.connect(websocket, site_id)
+    try:
+        while True:
+            # Keep connection alive, receive any client messages
+            data = await websocket.receive_text()
+            # Handle client commands if needed
+    except WebSocketDisconnect:
+        await mes_manager.disconnect(websocket, site_id)
+```
+
+### API Endpoints
+
+```yaml
+POST /mes/events:
+  description: Receive MES events (webhook endpoint)
+  request:
+    events: MESEvent[]
+  response:
+    received: integer
+    processed: integer
+    errors: string[]
+
+GET /mes/status/{site_id}:
+  description: Get current MES connection status
+  response:
+    connected: boolean
+    last_event: datetime
+    event_rate: float  # events per minute
+    connection_health: string
+
+WebSocket /ws/mes/{site_id}:
+  description: Real-time MES event stream
+  messages:
+    - type: cycle_complete
+    - type: equipment_status
+    - type: production_count
+```
+
+---
+
+## MES CTO/BTO Work Order Integration ⚠️ **PLACEHOLDER**
+
+### Overview
+
+Integration specification for Configure-to-Order (CTO) and Build-to-Order (BTO) work orders from MES systems. This integration enables the Line Balance system to understand product variants, customization options, and their impact on cycle times.
+
+**Phase Assignment:** Phase 3 - External Integration  
+**Implementation Priority:** Medium  
+**Target Sprint:** Sprint 6-7 (Phase 3)  
+**Status:** Placeholder - Awaiting MES API specification
+
+### CTO/BTO Work Order Data Model
+
+```python
+# src/models/cto_bto_work_order.py
+from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
+from enum import Enum
+from datetime import datetime
+
+class ProductType(str, Enum):
+    """Product type classification"""
+    STANDARD = "standard"       # Build-to-Stock (BTS)
+    CTO = "cto"                 # Configure-to-Order
+    BTO = "bto"                 # Build-to-Order
+    ETO = "eto"                 # Engineer-to-Order
+
+class OptionCategory(str, Enum):
+    """Component option categories for CTO/BTO"""
+    CPU = "cpu"
+    MEMORY = "memory"
+    STORAGE = "storage"
+    GPU = "gpu"
+    POWER_SUPPLY = "power_supply"
+    CHASSIS = "chassis"
+    NIC = "network_interface"
+    RAILS = "rails"
+    SOFTWARE = "software"
+    CUSTOM = "custom"
+
+class ComponentOption(BaseModel):
+    """Single component option for CTO/BTO configuration"""
+    option_id: str
+    option_code: str
+    description: str
+    category: OptionCategory
+    cycle_time_delta_seconds: float = 0.0  # Added CT vs base model
+    special_tools_required: List[str] = []
+    skill_level_required: int = 1  # 1-5 scale
+    is_default: bool = False
+
+class CTOBTOConfiguration(BaseModel):
+    """Complete CTO/BTO configuration for a work order"""
+    config_id: str
+    base_product_id: str
+    base_product_name: str
+    product_type: ProductType
+    
+    # Selected options
+    selected_options: Dict[OptionCategory, ComponentOption]
+    
+    # Calculated fields
+    total_cycle_time_delta: float = 0.0  # Sum of all option deltas
+    total_additional_tools: List[str] = []
+    max_skill_level_required: int = 1
+    
+    def calculate_adjusted_cycle_time(self, base_ct: float) -> float:
+        """Calculate total CT including all option deltas"""
+        return base_ct + self.total_cycle_time_delta
+
+class CTOBTOWorkOrder(BaseModel):
+    """Work order with CTO/BTO configuration from MES"""
+    work_order_id: str
+    work_order_number: str
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
+    
+    # Product configuration
+    configuration: CTOBTOConfiguration
+    
+    # Scheduling
+    quantity: int = 1
+    priority: int = 5  # 1=highest, 10=lowest
+    due_date: Optional[datetime] = None
+    
+    # MES metadata
+    mes_system_id: str
+    mes_work_order_status: str
+    received_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Line Balance fields
+    assigned_line_id: Optional[str] = None
+    estimated_completion: Optional[datetime] = None
+    adjusted_cycle_time: Optional[float] = None
+```
+
+### MES CTO/BTO Data Schema (Placeholder)
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MES CTO/BTO Work Order",
+  "description": "Placeholder schema for MES work order with CTO/BTO configuration",
+  "type": "object",
+  "required": ["work_order_id", "product_type", "base_product"],
+  "properties": {
+    "work_order_id": {
+      "type": "string",
+      "description": "Unique work order identifier from MES"
+    },
+    "work_order_number": {
+      "type": "string",
+      "description": "Human-readable work order number"
+    },
+    "product_type": {
+      "type": "string",
+      "enum": ["standard", "cto", "bto", "eto"]
+    },
+    "base_product": {
+      "type": "object",
+      "properties": {
+        "product_id": { "type": "string" },
+        "product_name": { "type": "string" },
+        "base_cycle_time_seconds": { "type": "number" }
+      }
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string" },
+          "option_code": { "type": "string" },
+          "description": { "type": "string" },
+          "cycle_time_delta": { "type": "number" }
+        }
+      }
+    },
+    "scheduling": {
+      "type": "object",
+      "properties": {
+        "quantity": { "type": "integer" },
+        "priority": { "type": "integer" },
+        "due_date": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
+```
+
+### MES Adapter for CTO/BTO (Placeholder)
+
+```python
+# src/integrations/mes_cto_bto_adapter.py
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional
+import httpx
+
+class MESCTOBTOAdapterBase(ABC):
+    """Base class for MES CTO/BTO integration"""
+    
+    @abstractmethod
+    async def get_work_orders(
+        self,
+        site_id: str,
+        status: Optional[str] = None,
+        product_type: Optional[str] = None
+    ) -> List[CTOBTOWorkOrder]:
+        """Retrieve work orders from MES"""
+        pass
+    
+    @abstractmethod
+    async def get_configuration(
+        self,
+        work_order_id: str
+    ) -> CTOBTOConfiguration:
+        """Get detailed configuration for a work order"""
+        pass
+    
+    @abstractmethod
+    async def sync_work_orders(
+        self,
+        site_id: str,
+        since: Optional[datetime] = None
+    ) -> Dict:
+        """Sync work orders from MES"""
+        pass
+
+class StubMESCTOBTOAdapter(MESCTOBTOAdapterBase):
+    """
+    Placeholder adapter for development/testing.
+    Replace with actual MES integration when API is available.
+    """
+    
+    def __init__(self, config: dict):
+        self.config = config
+        # Mock work orders for testing
+        self._mock_work_orders = self._load_mock_data()
+    
+    def _load_mock_data(self) -> List[Dict]:
+        """Load mock CTO/BTO work orders for development"""
+        return [
+            {
+                "work_order_id": "WO_CTO_001",
+                "work_order_number": "WO-2025-12345",
+                "product_type": "cto",
+                "base_product": {
+                    "product_id": "DL360_G11",
+                    "product_name": "ProLiant DL360 Gen11",
+                    "base_cycle_time_seconds": 1800
+                },
+                "options": [
+                    {"category": "cpu", "option_code": "XEON_GOLD_6454S", "delta": 120},
+                    {"category": "memory", "option_code": "DDR5_256GB", "delta": 180},
+                    {"category": "storage", "option_code": "NVME_3TB_RAID", "delta": 300}
+                ],
+                "scheduling": {
+                    "quantity": 5,
+                    "priority": 2,
+                    "due_date": "2026-01-15T00:00:00Z"
+                }
+            },
+            {
+                "work_order_id": "WO_BTO_002",
+                "work_order_number": "WO-2025-12346",
+                "product_type": "bto",
+                "base_product": {
+                    "product_id": "DL380_G11",
+                    "product_name": "ProLiant DL380 Gen11",
+                    "base_cycle_time_seconds": 2400
+                },
+                "options": [
+                    {"category": "gpu", "option_code": "NVIDIA_A100", "delta": 600},
+                    {"category": "power_supply", "option_code": "1600W_REDUNDANT", "delta": 120}
+                ],
+                "scheduling": {
+                    "quantity": 2,
+                    "priority": 1,
+                    "due_date": "2026-01-10T00:00:00Z"
+                }
+            }
+        ]
+    
+    async def get_work_orders(
+        self,
+        site_id: str,
+        status: Optional[str] = None,
+        product_type: Optional[str] = None
+    ) -> List[Dict]:
+        """Return mock work orders (placeholder)"""
+        results = self._mock_work_orders.copy()
+        if product_type:
+            results = [wo for wo in results if wo["product_type"] == product_type]
+        return results
+    
+    async def get_configuration(self, work_order_id: str) -> Dict:
+        """Return mock configuration (placeholder)"""
+        for wo in self._mock_work_orders:
+            if wo["work_order_id"] == work_order_id:
+                return wo
+        return None
+    
+    async def sync_work_orders(
+        self,
+        site_id: str,
+        since: Optional[datetime] = None
+    ) -> Dict:
+        """Mock sync operation (placeholder)"""
+        return {
+            "synced_count": len(self._mock_work_orders),
+            "new_orders": 2,
+            "updated_orders": 0,
+            "last_sync": datetime.utcnow().isoformat(),
+            "status": "placeholder_mode"
+        }
+```
+
+### CTO/BTO Cycle Time Adjustment Service
+
+```python
+# src/services/cto_bto_cycle_time_service.py
+class CTOBTOCycleTimeService:
+    """Calculate adjusted cycle times for CTO/BTO work orders"""
+    
+    def __init__(self, bdc_adapter, mes_adapter):
+        self.bdc = bdc_adapter
+        self.mes = mes_adapter
+    
+    async def calculate_adjusted_cycle_time(
+        self,
+        work_order_id: str,
+        station_type: str
+    ) -> Dict:
+        """
+        Calculate adjusted CT for CTO/BTO work order.
+        
+        Flow:
+        1. Get base CT from BDC (Expected CT)
+        2. Get work order configuration from MES
+        3. Sum all option cycle time deltas
+        4. Return adjusted CT
+        """
+        # Get base CT from BDC
+        wo_config = await self.mes.get_configuration(work_order_id)
+        base_product_id = wo_config["base_product"]["product_id"]
+        
+        base_ct = await self.bdc.get_expected_cycle_time(
+            part_id=base_product_id,
+            station_type=station_type
+        )
+        
+        # Calculate total delta from options
+        total_delta = sum(
+            opt.get("delta", 0) or opt.get("cycle_time_delta", 0)
+            for opt in wo_config.get("options", [])
+        )
+        
+        # Adjusted CT
+        adjusted_ct = base_ct["value"] + total_delta
+        
+        return {
+            "work_order_id": work_order_id,
+            "base_product_id": base_product_id,
+            "product_type": wo_config["product_type"],
+            "base_ct_seconds": base_ct["value"],
+            "options_delta_seconds": total_delta,
+            "adjusted_ct_seconds": adjusted_ct,
+            "options_applied": len(wo_config.get("options", []))
+        }
+```
+
+### API Endpoints for CTO/BTO
+
+```yaml
+# CTO/BTO Work Order APIs
+GET /integrations/mes/cto-bto/work-orders:
+  description: List CTO/BTO work orders from MES
+  query_params:
+    site_id: string
+    product_type: string  # cto, bto, eto
+    status: string
+  response:
+    work_orders: CTOBTOWorkOrder[]
+    total_count: integer
+
+GET /integrations/mes/cto-bto/work-orders/{work_order_id}:
+  description: Get detailed CTO/BTO configuration
+  response:
+    work_order_id: string
+    configuration: CTOBTOConfiguration
+    adjusted_cycle_time: number
+
+POST /integrations/mes/cto-bto/sync:
+  description: Sync CTO/BTO work orders from MES
+  request:
+    site_id: string
+    since: datetime (optional)
+  response:
+    synced_count: integer
+    new_orders: integer
+    updated_orders: integer
+
+POST /integrations/mes/cto-bto/cycle-time/calculate:
+  description: Calculate adjusted CT for work order
+  request:
+    work_order_id: string
+    station_type: string
+  response:
+    base_ct_seconds: number
+    options_delta_seconds: number
+    adjusted_ct_seconds: number
+```
+
+### MES Integration Configuration (Placeholder)
+
+```yaml
+# config/integrations/mes_cto_bto.yaml
+mes_cto_bto:
+  enabled: true
+  adapter_type: "stub"  # Change to actual MES type when available
+  
+  # Placeholder configuration
+  placeholder_mode: true
+  mock_data_path: "data/mes_cto_bto_mock.json"
+  
+  # Future MES connection (placeholder)
+  connection:
+    base_url: "${MES_API_URL:-http://mes-placeholder.local/api/v1}"
+    api_key: "${MES_API_KEY}"
+    timeout_seconds: 30
+  
+  sync:
+    cron_schedule: "*/15 * * * *"  # Every 15 minutes
+    batch_size: 100
+    retry_attempts: 3
+  
+  # Mapping from MES option codes to Line Balance
+  option_mappings:
+    cpu:
+      field: "processor_type"
+      default_delta_seconds: 60
+    memory:
+      field: "ram_config"
+      default_delta_seconds: 45
+    storage:
+      field: "disk_config"
+      default_delta_seconds: 120
+```
+
+---
+
+## Work Order Priority Optimizer Integration ⚠️ **IMPLEMENTATION**
+
+### Overview
+
+Integrate the `PriorityScheduler` with the main `/optimize` endpoint to consider work order priorities in line balance optimization.
+
+### Integration Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   Priority-Aware Optimization Flow                          │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  POST /optimize                                                       │  │
+│  │    Input: tasks, config, work_orders (with priorities)                │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Step 1: Priority Pre-processing                                     │  │
+│  │    - Sort work orders by priority                                     │  │
+│  │    - Calculate priority weights                                       │  │
+│  │    - Identify critical path constraints                               │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Step 2: CP-SAT Model Enhancement                                    │  │
+│  │    - Add priority-weighted objective terms                            │  │
+│  │    - Add ordering constraints for critical orders                     │  │
+│  │    - Adjust takt time bounds based on priority                        │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Step 3: Solve & Generate Schedule                                   │  │
+│  │    - Run CP-SAT solver                                                │  │
+│  │    - Generate priority-respecting schedule                            │  │
+│  │    - Validate critical order deadlines met                            │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Enhanced Optimizer Integration
+
+```python
+# src/optimizer/priority_optimizer.py
+from ortools.sat.python import cp_model
+from typing import List, Dict, Optional
+from enum import IntEnum
+
+class PriorityLevel(IntEnum):
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
+
+class PriorityAwareOptimizer:
+    """Extend base optimizer with priority handling"""
+    
+    def __init__(self, base_optimizer):
+        self.base_optimizer = base_optimizer
+        self.priority_weights = {
+            PriorityLevel.CRITICAL: 100,
+            PriorityLevel.HIGH: 50,
+            PriorityLevel.MEDIUM: 20,
+            PriorityLevel.LOW: 5
+        }
+    
+    def optimize_with_priorities(
+        self,
+        tasks: List[dict],
+        work_orders: List[dict],
+        config: dict
+    ) -> dict:
+        """Run optimization considering work order priorities"""
+        
+        model = cp_model.CpModel()
+        
+        # Group tasks by work order
+        wo_tasks = self._group_tasks_by_work_order(tasks, work_orders)
+        
+        # Create base optimization variables
+        task_vars = self._create_task_variables(model, tasks)
+        
+        # Add priority-weighted objective
+        objective_terms = []
+        
+        for wo in work_orders:
+            wo_id = wo["work_order_id"]
+            priority = PriorityLevel(wo.get("priority_level", 2))
+            weight = self.priority_weights[priority]
+            
+            # Higher priority = minimize completion time more aggressively
+            wo_completion = self._get_wo_completion_var(model, wo_id, task_vars)
+            objective_terms.append(wo_completion * weight)
+            
+            # Critical orders: add hard constraint on takt
+            if priority == PriorityLevel.CRITICAL:
+                max_takt = wo.get("max_takt_time", config.get("max_takt"))
+                if max_takt:
+                    model.Add(self.takt_var <= max_takt)
+        
+        # Add priority ordering constraints
+        self._add_priority_ordering(model, work_orders, task_vars)
+        
+        # Combine with base objective (minimize takt, balance utilization)
+        base_objective = self.base_optimizer.get_objective(model)
+        priority_objective = sum(objective_terms)
+        
+        # Weighted combination
+        model.Minimize(base_objective + priority_objective // 10)
+        
+        # Solve
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = config.get("timeout", 30)
+        status = solver.Solve(model)
+        
+        if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
+            return self._extract_solution(solver, task_vars, work_orders)
+        else:
+            return {"error": "No feasible solution found"}
+    
+    def _add_priority_ordering(
+        self, 
+        model: cp_model.CpModel, 
+        work_orders: List[dict],
+        task_vars: dict
+    ):
+        """Add constraints to prioritize critical orders"""
+        
+        sorted_orders = sorted(
+            work_orders, 
+            key=lambda x: -x.get("priority_level", 2)
+        )
+        
+        # Critical orders should start before lower priority ones
+        critical_orders = [wo for wo in sorted_orders 
+                         if wo.get("priority_level", 2) >= PriorityLevel.HIGH]
+        
+        for i, critical_wo in enumerate(critical_orders):
+            for lower_wo in sorted_orders[i+1:]:
+                if lower_wo.get("priority_level", 2) < PriorityLevel.HIGH:
+                    # Add soft constraint: critical should have earlier slot
+                    # (Implemented via objective weights, not hard constraint)
+                    pass
+
+# Integration with main optimize endpoint
+@app.post("/optimize")
+async def optimize_line_balance(request: OptimizeRequest):
+    """Enhanced /optimize with priority support"""
+    
+    # Extract work orders with priorities
+    work_orders = request.work_orders or []
+    
+    if work_orders and any(wo.get("priority_level") for wo in work_orders):
+        # Use priority-aware optimizer
+        optimizer = PriorityAwareOptimizer(base_optimizer)
+        result = optimizer.optimize_with_priorities(
+            tasks=request.tasks,
+            work_orders=work_orders,
+            config=request.config
+        )
+    else:
+        # Use standard optimizer
+        result = base_optimizer.optimize(request.tasks, request.config)
+    
+    return result
+```
+
+### API Schema Extension
+
+```yaml
+POST /optimize:
+  request:
+    tasks: Task[]
+    config: OptimizeConfig
+    work_orders:  # NEW: Optional work order context
+      - work_order_id: string
+        priority_level: integer  # 1=low, 2=medium, 3=high, 4=critical
+        due_date: date
+        max_takt_time: float  # Optional override
+        customer_code: string  # For customer-priority rules
+  response:
+    result: OptimizeResult
+    priority_analysis:  # NEW
+      critical_orders_scheduled: integer
+      priority_violations: string[]
+      schedule_order: string[]  # Work orders in scheduled order
+```
+
+---
+
+## Test Stage Scheduling Integration ⚠️ **IMPLEMENTATION**
+
+### Overview
+
+Integrate test stage durations into production scheduling to provide complete end-to-end time estimates.
+
+### Test Stage Time Framework
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   Production Timeline with Test Stages                      │
+│                                                                             │
+│  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐       │
+│  │ Kitting │ → │ Assembly│ → │ Testing │ → │ Packing │ → │ Shipping│       │
+│  │ Stage   │   │ Stage   │   │ Stage   │   │ Stage   │   │ Stage   │       │
+│  │ 30 min  │   │ 120 min │   │ 45 min  │   │ 15 min  │   │ 10 min  │       │
+│  └─────────┘   └─────────┘   └─────────┘   └─────────┘   └─────────┘       │
+│                                                                             │
+│  Total Production Time = 220 minutes per unit                               │
+│  Bottleneck = Assembly Stage (determines line takt)                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Models
+
+```python
+from pydantic import BaseModel
+from typing import List, Optional
+from enum import Enum
+
+class StageType(str, Enum):
+    KITTING = "kitting"
+    ASSEMBLY = "assembly"
+    TESTING = "testing"
+    PACKING = "packing"
+    SHIPPING = "shipping"
+    AUDIT = "audit"
+    REWORK = "rework"
+
+class ProductionStage(BaseModel):
+    stage_type: StageType
+    stage_name: str
+    sequence: int
+    
+    # Timing
+    standard_duration_minutes: float
+    min_duration_minutes: Optional[float] = None
+    max_duration_minutes: Optional[float] = None
+    
+    # Resources
+    station_codes: List[str]
+    parallel_capacity: int = 1  # How many units can be processed simultaneously
+    
+    # Constraints
+    requires_previous_complete: bool = True
+    can_batch: bool = False
+    batch_size: Optional[int] = None
+
+class TestStageDefinition(BaseModel):
+    test_stage_id: str
+    test_name: str
+    
+    # Timing
+    test_duration_minutes: float
+    setup_time_minutes: float = 0
+    cooldown_time_minutes: float = 0
+    
+    # Equipment
+    test_equipment_ids: List[str]
+    equipment_capacity: int  # Units per equipment
+    
+    # Scheduling
+    is_blocking: bool = True  # Must complete before next stage
+    can_parallel: bool = False
+    failure_rework_time: float = 0  # Additional time if test fails
+```
+
+### Test Stage Scheduler
+
+```python
+# src/services/test_stage_scheduler.py
+from datetime import datetime, timedelta
+from typing import List, Dict
+
+class TestStageScheduler:
+    """Schedule test stages within production timeline"""
+    
+    def __init__(self, site_config: dict):
+        self.site_config = site_config
+    
+    def calculate_total_production_time(
+        self,
+        product_sku: str,
+        quantity: int
+    ) -> Dict:
+        """Calculate total time including all stages"""
+        
+        stages = self._get_product_stages(product_sku)
+        
+        stage_times = []
+        total_time = 0
+        bottleneck_stage = None
+        bottleneck_time = 0
+        
+        for stage in stages:
+            # Calculate effective time considering parallel capacity
+            effective_time = (
+                stage.standard_duration_minutes * quantity / stage.parallel_capacity
+            )
+            
+            stage_times.append({
+                "stage": stage.stage_type.value,
+                "per_unit_minutes": stage.standard_duration_minutes,
+                "total_minutes": effective_time,
+                "parallel_capacity": stage.parallel_capacity
+            })
+            
+            # Track bottleneck (longest per-unit time)
+            if stage.standard_duration_minutes > bottleneck_time:
+                bottleneck_time = stage.standard_duration_minutes
+                bottleneck_stage = stage.stage_type.value
+            
+            total_time += effective_time
+        
+        return {
+            "product_sku": product_sku,
+            "quantity": quantity,
+            "stages": stage_times,
+            "total_production_minutes": total_time,
+            "bottleneck_stage": bottleneck_stage,
+            "bottleneck_time_minutes": bottleneck_time,
+            "effective_takt_minutes": bottleneck_time
+        }
+    
+    def schedule_with_tests(
+        self,
+        work_order_id: str,
+        product_sku: str,
+        quantity: int,
+        start_time: datetime
+    ) -> Dict:
+        """Generate complete schedule including test stages"""
+        
+        stages = self._get_product_stages(product_sku)
+        test_stages = self._get_test_stages(product_sku)
+        
+        schedule = []
+        current_time = start_time
+        
+        for stage in stages:
+            # Production stage
+            stage_duration = timedelta(
+                minutes=stage.standard_duration_minutes * quantity / stage.parallel_capacity
+            )
+            
+            schedule.append({
+                "type": "production",
+                "stage": stage.stage_type.value,
+                "start": current_time,
+                "end": current_time + stage_duration,
+                "duration_minutes": stage_duration.total_seconds() / 60
+            })
+            
+            current_time += stage_duration
+            
+            # Check for test stage after this production stage
+            test = next(
+                (t for t in test_stages if t.after_stage == stage.stage_type),
+                None
+            )
+            
+            if test:
+                test_duration = timedelta(
+                    minutes=(test.test_duration_minutes + test.setup_time_minutes) 
+                    * quantity / test.equipment_capacity
+                )
+                
+                schedule.append({
+                    "type": "testing",
+                    "stage": test.test_name,
+                    "start": current_time,
+                    "end": current_time + test_duration,
+                    "duration_minutes": test_duration.total_seconds() / 60,
+                    "equipment": test.test_equipment_ids
+                })
+                
+                current_time += test_duration
+        
+        return {
+            "work_order_id": work_order_id,
+            "schedule": schedule,
+            "total_start": start_time,
+            "total_end": current_time,
+            "total_duration_hours": (current_time - start_time).total_seconds() / 3600
+        }
+```
+
+### API Endpoints
+
+```yaml
+GET /products/{sku}/production-time:
+  description: Get total production time including all stages
+  parameters:
+    quantity: integer (default: 1)
+  response:
+    product_sku: string
+    quantity: integer
+    stages: ProductionStage[]
+    total_production_minutes: float
+    bottleneck_stage: string
+    effective_takt_minutes: float
+
+POST /schedule/with-tests:
+  description: Generate complete schedule including test stages
+  request:
+    work_order_id: string
+    product_sku: string
+    quantity: integer
+    start_time: datetime
+  response:
+    work_order_id: string
+    schedule: ScheduleEntry[]
+    total_start: datetime
+    total_end: datetime
+    total_duration_hours: float
+
+GET /test-stages/{product_sku}:
+  description: Get test stage definitions for a product
+  response:
+    product_sku: string
+    test_stages: TestStageDefinition[]
+    total_test_time_minutes: float
+```
+
+### Database Schema
+
+```sql
+CREATE TABLE production_stages (
+    id SERIAL PRIMARY KEY,
+    product_family VARCHAR(50),
+    stage_type VARCHAR(30) NOT NULL,
+    stage_name VARCHAR(100),
+    sequence INTEGER NOT NULL,
+    standard_duration_minutes DECIMAL(10,2),
+    parallel_capacity INTEGER DEFAULT 1,
+    requires_previous_complete BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE test_stage_definitions (
+    id SERIAL PRIMARY KEY,
+    product_family VARCHAR(50),
+    test_stage_id VARCHAR(50) UNIQUE,
+    test_name VARCHAR(100),
+    after_stage VARCHAR(30),  # Which production stage it follows
+    test_duration_minutes DECIMAL(10,2),
+    setup_time_minutes DECIMAL(10,2) DEFAULT 0,
+    equipment_capacity INTEGER DEFAULT 1,
+    is_blocking BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Insert example test stages
+INSERT INTO test_stage_definitions 
+(product_family, test_stage_id, test_name, after_stage, test_duration_minutes, setup_time_minutes)
+VALUES 
+('DL360_G11', 'TEST_BURN_IN', 'Burn-In Test', 'assembly', 240, 5),
+('DL360_G11', 'TEST_DIAG', 'Diagnostic Test', 'assembly', 30, 2),
+('DL360_G11', 'TEST_FINAL', 'Final QA', 'packing', 15, 0);
 ```
 
 ---

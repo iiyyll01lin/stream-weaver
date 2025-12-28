@@ -31,14 +31,14 @@ class SectionInfo:
 
 ## 🎯 Strategy Overview
 
-| Strategy Name        | Algorithm                      | Objective Function          | Uses OR-Tools? | Main Purpose                             |
-| -------------------- | ------------------------------ | --------------------------- | -------------- | ---------------------------------------- |
-| **Greedy**           | Greedy Heuristic               | Fast Feasible Solution      | ❌              | Initial Solution + Hint                  |
-| **Boolean Model**    | CP-SAT (Boolean Variables)     | Minimize Stations           | ✅              | Station Count Optimization               |
-| **Scheduling Model** | CP-SAT (Cumulative Constraint) | Minimize Last Station Index | ✅              | Station Count Optimization (Alternative) |
-| **Manpower Model**   | CP-SAT (Integer Variables)     | Minimize Total Workers      | ✅              | Workforce Optimization                   |
-| **Idle Model**       | CP-SAT (Load Balancing)        | Minimize Bottleneck Load    | ✅              | Load Balancing                           |
-| **Multi-Objective**  | Two-Phase Optimization         | Compound Objectives         | ✅              | Multi-Goal Optimization                  |
+| Strategy Name | Algorithm | Objective Function | Uses OR-Tools? | Main Purpose |
+|--------------|-----------|-------------------|----------------|--------------|
+| **Greedy** | Greedy Heuristic | Fast Feasible Solution | ❌ | Initial Solution + Hint |
+| **Boolean Model** | CP-SAT (Boolean Variables) | Minimize Stations | ✅ | Station Count Optimization |
+| **Scheduling Model** | CP-SAT (Cumulative Constraint) | Minimize Last Station Index | ✅ | Station Count Optimization (Alternative) |
+| **Manpower Model** | CP-SAT (Integer Variables) | Minimize Total Workers | ✅ | Workforce Optimization |
+| **Idle Model** | CP-SAT (Load Balancing) | Minimize Bottleneck Load | ✅ | Load Balancing |
+| **Multi-Objective** | Two-Phase Optimization | Compound Objectives | ✅ | Multi-Goal Optimization |
 
 ---
 
@@ -565,23 +565,23 @@ python or-line-balance.py \
 
 ### **Model Selection Guide**:
 
-| Requirement         | Recommended Model | Parameters                                 |
-| ------------------- | ----------------- | ------------------------------------------ |
-| Minimum stations    | Boolean Model     | `--objective min_stations --model boolean` |
-| Minimum workforce   | Manpower Model    | `--objective min_manpower --target_takt N` |
-| Load balancing      | Idle Model        | `--objective min_idle`                     |
-| Compound objectives | Multi-Objective   | `--multi_objective stations_then_idle`     |
-| Quick testing       | Greedy            | `--model greedy`                           |
+| Requirement | Recommended Model | Parameters |
+|-------------|-------------------|------------|
+| Minimum stations | Boolean Model | `--objective min_stations --model boolean` |
+| Minimum workforce | Manpower Model | `--objective min_manpower --target_takt N` |
+| Load balancing | Idle Model | `--objective min_idle` |
+| Compound objectives | Multi-Objective | `--multi_objective stations_then_idle` |
+| Quick testing | Greedy | `--model greedy` |
 
 ### **Solving Time Comparison** (Empirical values):
 
-| Model      | 12 Tasks | 50 Tasks | 100 Tasks |
-| ---------- | -------- | -------- | --------- |
-| Greedy     | < 0.1s   | < 0.5s   | < 1s      |
-| Boolean    | 1-5s     | 10-60s   | 60-300s   |
-| Scheduling | 1-3s     | 5-30s    | 30-180s   |
-| Manpower   | 2-10s    | 20-120s  | 120-600s  |
-| Idle       | 1-5s     | 10-60s   | 60-300s   |
+| Model | 12 Tasks | 50 Tasks | 100 Tasks |
+|-------|----------|----------|-----------|
+| Greedy | < 0.1s | < 0.5s | < 1s |
+| Boolean | 1-5s | 10-60s | 60-300s |
+| Scheduling | 1-3s | 5-30s | 30-180s |
+| Manpower | 2-10s | 20-120s | 120-600s |
+| Idle | 1-5s | 10-60s | 60-300s |
 
 **Note**: Actual time depends on problem complexity (number of precedence relations, cycle_time tightness, etc.).
 
@@ -935,15 +935,699 @@ station_index,total_load,online_tasks,offline_tasks,adjustable_tasks,merged_task
 
 ## 📊 Updated Model Selection Guide
 
-| Requirement                 | Recommended Model         | Parameters                                        | Phase   |
-| --------------------------- | ------------------------- | ------------------------------------------------- | ------- |
-| Minimum stations            | Boolean Model             | `--objective min_stations --model boolean`        | 1       |
-| Minimum workforce           | Manpower Model            | `--objective min_manpower --target_takt N`        | 1       |
-| Load balancing              | Idle Model                | `--objective min_idle`                            | 1       |
-| **Offline task handling**   | **Offline-Aware Model**   | `--enable_offline_handling`                       | **1.5** |
-| **Adjustable task merging** | **Adjustable Task Model** | `--enable_task_merging`                           | **1.5** |
-| **Combined optimization**   | **Combined Model**        | `--enable_offline_handling --enable_task_merging` | **1.5** |
-| Compound objectives         | Multi-Objective           | `--multi_objective stations_then_idle`            | 1       |
-| Quick testing               | Greedy                    | `--model greedy`                                  | 1       |
+| Requirement | Recommended Model | Parameters | Phase |
+|-------------|-------------------|------------|-------|
+| Minimum stations | Boolean Model | `--objective min_stations --model boolean` | 1 |
+| Minimum workforce | Manpower Model | `--objective min_manpower --target_takt N` | 1 |
+| Load balancing | Idle Model | `--objective min_idle` | 1 |
+| **Offline task handling** | **Offline-Aware Model** | `--enable_offline_handling` | **1.5** |
+| **Adjustable task merging** | **Adjustable Task Model** | `--enable_task_merging` | **1.5** |
+| **Combined optimization** | **Combined Model** | `--enable_offline_handling --enable_task_merging` | **1.5** |
+| Compound objectives | Multi-Objective | `--multi_objective stations_then_idle` | 1 |
+| Quick testing | Greedy | `--model greedy` | 1 |
+| **Multi-line balancing** | **Multi-Line Model** | `--multi_line_config {...}` | **2** |
+| **Line type selection** | **Recommendation Engine** | `GET /recommend-line-type` | **2** |
+| **Assembly visualization** | **Fishbone Generator** | `GET /fishbone-diagram` | **2** |
+| **NLP queries** | **LangChain + GPT-4** | `POST /nlp-query` | **3** |
+| **Ergonomic analysis** | **Sensor Processor** | `POST /upload-sensor-data` | **3** |
+| **3D collision check** | **Collision Detector** | `POST /check-collision` | **3** |
+
+---
+
+## 🔧 Phase 2 Extended Models
+
+Phase 2 introduces multi-line optimization, visual assembly tools, and product configuration capabilities.
+
+---
+
+### 9️⃣ **Multi-Line Optimization Model**
+
+#### **Purpose**
+Optimize task assignment across multiple production lines simultaneously with cross-line balancing.
+
+#### **Application Scenario**
+- **REQ #5**: Multi-line production optimization
+- **Use case**: Factory with multiple parallel assembly lines
+- **Benefit**: Global optimization instead of line-by-line local optimization
+
+#### **Decision Variables**
+```python
+assign[t, s, l] : BoolVar  # Task t assigned to station s on line l
+line_active[l]  : BoolVar  # Whether line l is used
+station_active[s, l] : BoolVar  # Whether station s on line l is active
+```
+
+#### **Constraints**
+
+**1. Unique Assignment (Across All Lines)**:
+```python
+∀t: Σ(assign[t, s, l] for s, l) = 1  # Each task assigned exactly once
+```
+
+**2. Per-Line Capacity**:
+```python
+∀l, ∀s: Σ(assign[t, s, l] × duration[t] for t) ≤ takt_time[l]
+```
+
+**3. Line-Specific Takt Time**:
+```python
+# Each line can have different target takt
+takt_time = {
+    "LINE_A": 30000,
+    "LINE_B": 25000,
+    "LINE_C": 35000
+}
+```
+
+**4. Cross-Line Precedence** (Optional):
+```python
+# Tasks with shared predecessors can be on different lines
+∀(before, after) ∈ precedences:
+  line[after] = line[before] OR no_cross_line_dependency
+```
+
+**5. Line Balance Index**:
+```python
+# Minimize variance across lines
+line_loads[l] = Σ(assign[t, s, l] × duration[t] for t, s)
+balance_index = max(line_loads) - min(line_loads)
+```
+
+#### **Objective Function**
+```python
+# Primary: Minimize total stations across all lines
+# Secondary: Minimize cross-line imbalance
+minimize Σ(station_active[s, l]) + α × balance_index
+```
+
+#### **API Request**
+```json
+POST /optimize
+{
+  "work_order_id": "WO_MULTI",
+  "optimization_goal": "min_stations",
+  "target_takt": 30000,
+  "multi_line_config": {
+    "enabled": true,
+    "lines": [
+      {"line_id": "A", "target_takt": 30000, "max_stations": 5},
+      {"line_id": "B", "target_takt": 25000, "max_stations": 6}
+    ],
+    "cross_line_balancing": true
+  }
+}
+```
+
+#### **Output Structure**
+```json
+{
+  "lines": [
+    {
+      "line_id": "LINE_A",
+      "stations": [...],
+      "line_summary": {"num_stations": 3, "efficiency": 0.95}
+    },
+    {
+      "line_id": "LINE_B", 
+      "stations": [...],
+      "line_summary": {"num_stations": 4, "efficiency": 0.92}
+    }
+  ],
+  "global_summary": {
+    "total_stations": 7,
+    "cross_line_balance_index": 0.98
+  }
+}
+```
+
+---
+
+### 🔟 **Line Type Recommendation Engine**
+
+#### **Purpose**
+AI-powered recommendation for optimal production line configuration based on task characteristics.
+
+#### **Line Types**
+| Type | Description | Best For |
+|------|-------------|----------|
+| **Cell** | U-shaped, 1-3 operators | Low volume, high mix |
+| **Short Line** | 4-8 stations | Medium volume |
+| **Long Line** | 9+ stations | High volume, low mix |
+
+#### **Decision Algorithm**
+```python
+def recommend_line_type(tasks, target_takt, volume):
+    """Rule-based + ML hybrid recommendation"""
+    
+    # Feature extraction
+    task_count = len(tasks)
+    total_time = sum(t.duration for t in tasks)
+    complexity_score = calculate_complexity(tasks)
+    volume_factor = categorize_volume(volume)
+    
+    # Rule-based scoring
+    scores = {
+        "cell": 0,
+        "short_line": 0,
+        "long_line": 0
+    }
+    
+    # Task count rules
+    if task_count <= 15:
+        scores["cell"] += 30
+    elif task_count <= 40:
+        scores["short_line"] += 30
+    else:
+        scores["long_line"] += 30
+    
+    # Volume rules
+    if volume < 100:
+        scores["cell"] += 25
+    elif volume < 500:
+        scores["short_line"] += 25
+    else:
+        scores["long_line"] += 25
+    
+    # Complexity rules
+    if complexity_score > 3.5:
+        scores["cell"] += 20  # Complex = fewer stations, more skill
+    elif complexity_score > 2.0:
+        scores["short_line"] += 20
+    else:
+        scores["long_line"] += 20
+    
+    # Normalize and return
+    recommended = max(scores, key=scores.get)
+    confidence = scores[recommended] / sum(scores.values())
+    
+    return {
+        "line_type": recommended,
+        "confidence": confidence,
+        "alternatives": sorted(scores.items(), key=lambda x: -x[1])
+    }
+```
+
+#### **API Endpoint**
+```bash
+GET /recommend-line-type?work_order_id=WO_A&target_takt=30000&volume=1000
+```
+
+---
+
+### 1️⃣1️⃣ **Fishbone Diagram Generator**
+
+#### **Purpose**
+Generate visual assembly sequence diagrams showing task dependencies and critical path.
+
+#### **Algorithm**
+```python
+def generate_fishbone(tasks, precedences, assignment):
+    """Generate fishbone diagram using NetworkX"""
+    
+    # Create directed graph
+    G = nx.DiGraph()
+    
+    # Add nodes (tasks)
+    for task in tasks:
+        G.add_node(task.id, 
+                   label=task.name,
+                   duration=task.duration,
+                   station=assignment.get(task.id))
+    
+    # Add edges (precedences)
+    for before, after in precedences:
+        G.add_edge(before, after)
+    
+    # Calculate critical path
+    critical_path = nx.dag_longest_path(G, weight='duration')
+    
+    # Layout: hierarchical (fishbone structure)
+    pos = nx.multipartite_layout(G, subset_key='station')
+    
+    # Render
+    fig, ax = plt.subplots(figsize=(16, 10))
+    nx.draw(G, pos, ax=ax, 
+            node_color=['red' if n in critical_path else 'lightblue' for n in G.nodes()],
+            with_labels=True,
+            arrows=True)
+    
+    return fig
+```
+
+#### **Output Formats**
+- **SVG**: Vector format for documentation
+- **PNG**: Raster format for presentations
+- **JSON**: Structured data for custom rendering
+
+#### **API Endpoint**
+```bash
+# SVG output
+GET /fishbone-diagram?work_order_id=WO_A&format=svg
+
+# PNG output  
+GET /fishbone-diagram?work_order_id=WO_A&format=png
+
+# JSON metadata
+GET /fishbone-diagram?work_order_id=WO_A&format=json
+```
+
+---
+
+### 1️⃣2️⃣ **Product Configuration Model (CTO/BTO)**
+
+#### **Purpose**
+Manage product variants and calculate time adjustments based on configuration options.
+
+#### **Data Model**
+```python
+class ProductConfig:
+    product_family: str      # e.g., "DL380_Gen10"
+    variant_id: str          # e.g., "DL380_8SFF_2P"
+    base_configuration: dict # Base component options
+    optional_modules: list   # Add-on modules with time impact
+    time_adjustments: dict   # Time calculation rules
+```
+
+#### **Time Calculation**
+```python
+def calculate_variant_time(config, selected_options):
+    """Calculate total assembly time for a product variant"""
+    
+    base_time = config.time_adjustments["base_time_ms"]
+    
+    # Add per-component time
+    for component, count in selected_options.items():
+        if component == "processors":
+            base_time += count * config.time_adjustments["per_processor_ms"]
+        elif component == "memory_slots":
+            base_time += count * config.time_adjustments["per_memory_slot_ms"]
+    
+    # Add optional module time
+    for module in selected_options.get("modules", []):
+        module_config = config.optional_modules.get(module)
+        if module_config and module_config["compatible"]:
+            base_time += module_config["add_time_ms"]
+    
+    return base_time
+```
+
+#### **API Endpoints**
+```bash
+# Create configuration
+POST /product-config
+{
+  "product_family": "DL380_Gen10",
+  "variant_id": "DL380_8SFF_2P",
+  "base_configuration": {"chassis": "DL380_8SFF", "processors": 2},
+  "time_adjustments": {"base_time_ms": 45000, "per_processor_ms": 12000}
+}
+
+# Query configurations
+GET /product-config?product_family=DL380_Gen10
+```
+
+---
+
+## 🤖 Phase 3 AI/ML Models
+
+Phase 3 introduces advanced AI/ML capabilities for natural language interaction, ergonomic analysis, and 3D simulation.
+
+---
+
+### 1️⃣3️⃣ **Natural Language Query Engine**
+
+#### **Purpose**
+Enable conversational interface for line balance queries using LLM.
+
+#### **Architecture**
+```
+User Query → Intent Recognition → Entity Extraction → Query Execution → Response Generation
+     ↓              ↓                    ↓                  ↓                ↓
+"Show me      "get_bottleneck"     work_order_id      API call         Natural language
+bottleneck                          = "WO_A"         to /optimize       summary
+stations"
+```
+
+#### **Implementation (LangChain)**
+```python
+from langchain import LLMChain, OpenAI
+from langchain.agents import Tool, initialize_agent
+
+class NLPQueryEngine:
+    def __init__(self):
+        self.llm = OpenAI(model="gpt-4", temperature=0)
+        
+        # Define tools (API endpoints as functions)
+        self.tools = [
+            Tool(
+                name="get_optimization_result",
+                func=self.get_optimization,
+                description="Get line balance optimization results"
+            ),
+            Tool(
+                name="get_bottleneck_analysis",
+                func=self.get_bottleneck,
+                description="Identify bottleneck stations"
+            ),
+            Tool(
+                name="get_efficiency_report",
+                func=self.get_efficiency,
+                description="Get line efficiency metrics"
+            )
+        ]
+        
+        self.agent = initialize_agent(
+            self.tools, 
+            self.llm, 
+            agent="zero-shot-react-description"
+        )
+    
+    def query(self, natural_language_query: str) -> str:
+        return self.agent.run(natural_language_query)
+```
+
+#### **Supported Query Types**
+| Query Pattern | Intent | Example |
+|---------------|--------|---------|
+| "Show bottleneck..." | `get_bottleneck` | "Show me bottleneck stations for WO_A" |
+| "What is the efficiency..." | `get_efficiency` | "What is the line balance rate?" |
+| "How many stations..." | `get_station_count` | "How many stations do we need?" |
+| "Compare..." | `compare_scenarios` | "Compare min_stations vs min_idle" |
+| "Suggest..." | `get_recommendation` | "Suggest optimal line type" |
+
+#### **API Endpoint**
+```bash
+POST /nlp-query
+{
+  "query": "Show me the bottleneck stations for work order WO_A",
+  "context": {"work_order_id": "WO_A"}
+}
+```
+
+---
+
+### 1️⃣4️⃣ **Body Sensor Data Processor**
+
+#### **Purpose**
+Process motion capture data to analyze operator movements and calculate ergonomic scores.
+
+#### **Pipeline**
+```
+Video Upload → Frame Extraction → Pose Estimation → Action Classification → REBA Scoring
+     ↓              ↓                   ↓                   ↓                  ↓
+  MP4/AVI      30 fps frames      MediaPipe 33pts      Task mapping      Risk assessment
+```
+
+#### **Pose Estimation (MediaPipe)**
+```python
+import mediapipe as mp
+
+class PoseEstimator:
+    def __init__(self):
+        self.mp_pose = mp.solutions.pose
+        self.pose = self.mp_pose.Pose(
+            static_image_mode=False,
+            model_complexity=2,
+            min_detection_confidence=0.5
+        )
+    
+    def process_frame(self, frame):
+        """Extract 33 pose landmarks from frame"""
+        results = self.pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        
+        if results.pose_landmarks:
+            landmarks = []
+            for landmark in results.pose_landmarks.landmark:
+                landmarks.append({
+                    "x": landmark.x,
+                    "y": landmark.y,
+                    "z": landmark.z,
+                    "visibility": landmark.visibility
+                })
+            return landmarks
+        return None
+```
+
+#### **REBA Score Calculation**
+```python
+def calculate_reba_score(pose_landmarks):
+    """Calculate Rapid Entire Body Assessment score"""
+    
+    # Extract joint angles
+    trunk_angle = calculate_trunk_flexion(pose_landmarks)
+    neck_angle = calculate_neck_flexion(pose_landmarks)
+    leg_score = calculate_leg_position(pose_landmarks)
+    upper_arm_angle = calculate_upper_arm_position(pose_landmarks)
+    lower_arm_angle = calculate_lower_arm_position(pose_landmarks)
+    wrist_angle = calculate_wrist_position(pose_landmarks)
+    
+    # REBA scoring tables
+    trunk_score = get_trunk_score(trunk_angle)  # 1-5
+    neck_score = get_neck_score(neck_angle)      # 1-3
+    
+    # Table A: Trunk + Neck + Legs
+    table_a_score = REBA_TABLE_A[trunk_score][neck_score][leg_score]
+    
+    # Table B: Upper arm + Lower arm + Wrist
+    table_b_score = REBA_TABLE_B[upper_arm_angle][lower_arm_angle][wrist_angle]
+    
+    # Table C: Combine A + B
+    table_c_score = REBA_TABLE_C[table_a_score][table_b_score]
+    
+    # Add activity score
+    activity_score = 1  # Assuming static posture
+    
+    final_score = table_c_score + activity_score
+    
+    return {
+        "reba_score": final_score,
+        "risk_level": get_risk_level(final_score),  # "negligible" to "very high"
+        "action_required": get_action_recommendation(final_score)
+    }
+
+def get_risk_level(score):
+    if score <= 1: return "negligible"
+    elif score <= 3: return "low"
+    elif score <= 7: return "medium"
+    elif score <= 10: return "high"
+    else: return "very_high"
+```
+
+#### **API Endpoints**
+```bash
+# Upload video for processing
+POST /upload-sensor-data
+Content-Type: multipart/form-data
+file: operator_motion.mp4
+
+# Get processed results
+GET /sensor-data/{upload_id}
+```
+
+---
+
+### 1️⃣5️⃣ **Collision Detection System**
+
+#### **Purpose**
+Detect interference between 3D objects in production line layouts.
+
+#### **Algorithms**
+| Algorithm | Speed | Accuracy | Use Case |
+|-----------|-------|----------|----------|
+| **AABB** | Fast | Low | Broad phase |
+| **OBB** | Medium | Medium | Oriented boxes |
+| **Mesh** | Slow | High | Precise check |
+
+#### **Implementation**
+```python
+class CollisionDetector:
+    def __init__(self, algorithm="aabb"):
+        self.algorithm = algorithm
+        self.spatial_hash = SpatialHashGrid(cell_size=100)
+    
+    def check_collision(self, object_a, object_b):
+        """Check if two objects collide"""
+        
+        if self.algorithm == "aabb":
+            return self._aabb_collision(object_a.bbox, object_b.bbox)
+        elif self.algorithm == "obb":
+            return self._obb_collision(object_a.obb, object_b.obb)
+        elif self.algorithm == "mesh":
+            return self._mesh_collision(object_a.mesh, object_b.mesh)
+    
+    def _aabb_collision(self, box_a, box_b):
+        """Axis-Aligned Bounding Box collision"""
+        return (
+            box_a.min.x <= box_b.max.x and box_a.max.x >= box_b.min.x and
+            box_a.min.y <= box_b.max.y and box_a.max.y >= box_b.min.y and
+            box_a.min.z <= box_b.max.z and box_a.max.z >= box_b.min.z
+        )
+    
+    def check_layout(self, layout):
+        """Check all objects in a layout for collisions"""
+        
+        # Broad phase: spatial hashing
+        self.spatial_hash.clear()
+        for obj in layout.objects:
+            self.spatial_hash.insert(obj)
+        
+        collisions = []
+        checked = set()
+        
+        for obj in layout.objects:
+            candidates = self.spatial_hash.query(obj.bbox)
+            for candidate in candidates:
+                pair = tuple(sorted([obj.id, candidate.id]))
+                if pair not in checked:
+                    checked.add(pair)
+                    if self.check_collision(obj, candidate):
+                        collisions.append({
+                            "object_a": obj.id,
+                            "object_b": candidate.id,
+                            "intersection_volume": self._calculate_intersection(obj, candidate)
+                        })
+        
+        return collisions
+```
+
+#### **API Endpoint**
+```bash
+POST /check-collision
+{
+  "layout_id": 42,
+  "algorithm": "aabb",
+  "objects": [
+    {"id": "WS1", "position": [0, 0, 0], "dimensions": [2, 1, 1.5]},
+    {"id": "WS2", "position": [1.5, 0, 0], "dimensions": [2, 1, 1.5]}
+  ]
+}
+```
+
+#### **Response**
+```json
+{
+  "has_collision": true,
+  "collision_count": 1,
+  "collisions": [
+    {
+      "object_a": "WS1",
+      "object_b": "WS2",
+      "intersection_volume": 0.75,
+      "severity": "warning"
+    }
+  ],
+  "suggestions": [
+    "Move WS2 by +0.5m in X direction to resolve collision"
+  ]
+}
+```
+
+---
+
+### 1️⃣6️⃣ **Version Control System**
+
+#### **Purpose**
+Git-like versioning for line balance configurations with diff and merge capabilities.
+
+#### **Data Model**
+```python
+class ConfigurationVersion:
+    version_id: str          # SHA-256 hash
+    parent_id: str           # Previous version
+    timestamp: datetime
+    author: str
+    message: str
+    snapshot: dict           # Full configuration state
+    diff: dict               # Changes from parent
+```
+
+#### **Operations**
+```python
+class VersionManager:
+    def create_version(self, config, message, author):
+        """Create new version snapshot"""
+        snapshot = self._serialize_config(config)
+        version_hash = hashlib.sha256(json.dumps(snapshot).encode()).hexdigest()
+        
+        parent = self.get_current_version()
+        diff = self._compute_diff(parent.snapshot, snapshot) if parent else None
+        
+        version = ConfigurationVersion(
+            version_id=version_hash,
+            parent_id=parent.version_id if parent else None,
+            timestamp=datetime.now(),
+            author=author,
+            message=message,
+            snapshot=snapshot,
+            diff=diff
+        )
+        
+        self._save_version(version)
+        return version
+    
+    def get_diff(self, version_a, version_b):
+        """Compare two versions"""
+        return {
+            "added": self._find_additions(version_a.snapshot, version_b.snapshot),
+            "removed": self._find_removals(version_a.snapshot, version_b.snapshot),
+            "modified": self._find_modifications(version_a.snapshot, version_b.snapshot)
+        }
+    
+    def restore_version(self, version_id):
+        """Restore configuration to specific version"""
+        version = self.get_version(version_id)
+        self._apply_snapshot(version.snapshot)
+        return version
+```
+
+#### **API Endpoints**
+```bash
+# List versions
+GET /versions?config_type=layout&config_id=42
+
+# Create version
+POST /versions
+{
+  "config_type": "layout",
+  "config_id": 42,
+  "message": "Added new workstation WS5",
+  "author": "user@example.com"
+}
+
+# Get diff
+GET /versions/diff?from=abc123&to=def456
+
+# Restore version
+POST /versions/restore
+{
+  "version_id": "abc123"
+}
+```
+
+---
+
+## 📊 Complete Model Selection Guide
+
+| Requirement | Model | Parameters | Phase |
+|-------------|-------|------------|-------|
+| Minimum stations | Boolean Model | `--objective min_stations` | 1 |
+| Minimum workforce | Manpower Model | `--objective min_manpower --target_takt N` | 1 |
+| Load balancing | Idle Model | `--objective min_idle` | 1 |
+| Offline tasks | Offline-Aware | `--enable_offline_handling` | 1.5 |
+| Task merging | Adjustable Model | `--enable_task_merging` | 1.5 |
+| Multi-line | Multi-Line Model | `multi_line_config: {enabled: true}` | 2 |
+| Line type | Recommendation | `GET /recommend-line-type` | 2 |
+| Visualization | Fishbone | `GET /fishbone-diagram` | 2 |
+| CTO/BTO | Product Config | `POST /product-config` | 2 |
+| NLP queries | LangChain | `POST /nlp-query` | 3 |
+| Ergonomics | Sensor Processor | `POST /upload-sensor-data` | 3 |
+| 3D collision | Collision Detector | `POST /check-collision` | 3 |
+| Versioning | Version Manager | `GET/POST /versions` | 3 |
+
+---
+
+**Document Maintainer:** JASON YY, LIN  
+**Last Updated:** 2025-12-14  
+**Version:** 3.1.0-phase3
 
 

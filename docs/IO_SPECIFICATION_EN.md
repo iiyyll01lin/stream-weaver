@@ -6,16 +6,21 @@
 
 Task definition file containing basic information for all tasks.
 
-| Column Name        | Data Type | Required    | Description                                                                                    | Example                         | Phase Support |
-| ------------------ | --------- | ----------- | ---------------------------------------------------------------------------------------------- | ------------------------------- | ------------- |
-| `task_id`          | Integer   | ✅ Required  | Unique task identifier                                                                         | 1, 2, 3                         | Phase 1       |
-| `duration`         | Integer   | ✅ Required  | Task execution time (seconds/minutes/any time unit)                                            | 5, 10, 15                       | Phase 1       |
-| `predecessors`     | String    | ❌ Optional  | Comma-separated list of predecessor task IDs, leave empty if none                              | "1,2,3" or ""                   | Phase 1       |
+| Column Name        | Data Type | Required     | Description                                                                                    | Example                         | Phase Support |
+|--------------------|-----------|--------------|------------------------------------------------------------------------------------------------|---------------------------------|---------------|
+| `task_id`          | Integer   | ✅ Required   | Unique task identifier                                                                         | 1, 2, 3                         | Phase 1       |
+| `duration`         | Integer   | ✅ Required   | Task execution time (seconds/minutes/any time unit)                                            | 5, 10, 15                       | Phase 1       |
+| `predecessors`     | String    | ❌ Optional   | Comma-separated list of predecessor task IDs, leave empty if none                              | "1,2,3" or ""                   | Phase 1       |
 | `offline_flag`     | Integer   | ⚠️ Phase 1.5 | Offline processing indicator: 0=online (on production line), 1=offline (off-line processing)   | 0, 1                            | Phase 1.5     |
 | `adjustable`       | Integer   | ⚠️ Phase 1.5 | Task adjustability: 0=fixed duration (cannot be merged/split), 1=adjustable (can be optimized) | 0, 1                            | Phase 1.5     |
-| `action_type`      | String    | ❌ Optional  | Action classification for grouping similar tasks                                               | "screw", "glue", "clip", "test" | Phase 1.5     |
-| `complexity_level` | String    | ❌ Optional  | Assembly complexity: simple/medium/complex/super_complex (REQ #10)                             | "simple", "complex"             | Phase 1.5 Ext |
-| `part_id`          | String    | ❌ Optional  | Part number for BOM integration (REQ #12)                                                      | "GPU_GTX3080", "HDD_2TB"        | Phase 1.5 Ext |
+| `action_type`      | String    | ❌ Optional   | Action classification for grouping similar tasks                                               | "screw", "glue", "clip", "test" | Phase 1.5     |
+| `motion_type`      | String    | ❌ Optional   | Detailed motion classification (MOST/MTM) ⚠️ **REQ #14**                                        | "finger", "wrist", "elbow", "arm", "body" | Phase 1.5 Ext |
+| `equipment_id`     | String    | ❌ Optional   | Equipment used for action (scanner, torque driver, etc.) ⚠️ **REQ #14**                         | "SCANNER_01", "TORQUE_DRV_M3" | Phase 1.5 Ext |
+| `non_divisible`    | Integer   | ❌ Optional   | Task cannot be split across stations (0=divisible, 1=non-divisible) ⚠️ **REQ #42**              | 0, 1                            | Phase 1.5 Ext |
+| `exclude_from_balance` | Integer | ❌ Optional | Exclude from line balancing (e.g., packaging materials) ⚠️ **REQ #43b**                        | 0, 1                            | Phase 1.5 Ext |
+| `expected_cycle_time` | Integer | ❌ Optional  | Expected/target cycle time for alerting (from BDC) ⚠️ **REQ #44b**                             | 5000, 8000                      | Phase 2       |
+| `complexity_level` | String    | ❌ Optional   | Assembly complexity: simple/medium/complex/super_complex (REQ #10)                             | "simple", "complex"             | Phase 1.5 Ext |
+| `part_id`          | String    | ❌ Optional   | Part number for BOM integration (REQ #12)                                                      | "GPU_GTX3080", "HDD_2TB"        | Phase 1.5 Ext |
 
 **Example File (Phase 1 - Basic):**
 ```csv
@@ -53,6 +58,32 @@ task_id,duration,offline_flag,adjustable,action_type,complexity_level,part_id,pr
   - Classifies tasks by action category (screw, glue, clip, test, etc.)
   - Used for identifying merge candidates (e.g., two "screw" tasks can be merged)
   - Supports future ML-based complexity classification (REQ #10)
+- `motion_type` (⚠️ Phase 1.5 Extended - REQ #14):
+  - **MOST/MTM-based motion classification** for accurate time study:
+    - `finger`: Fine motor movements (picking small parts, pressing buttons)
+    - `wrist`: Wrist rotation (turning screws, adjusting orientation)
+    - `elbow`: Forearm movements (reaching nearby, short carries)
+    - `arm`: Full arm movements (reaching far, long carries)
+    - `body`: Trunk/leg movements (bending, walking, heavy lifting)
+  - **Use case**: More accurate time estimation based on motion complexity
+  - **MVS Integration**: Maps to Method Time Measurement (MTM) codes
+- `equipment_id` (⚠️ Phase 1.5 Extended - REQ #14):
+  - Equipment identifier for actions requiring tools/devices:
+    - `SCANNER_01`: Barcode scanner
+    - `TORQUE_DRV_M3`: Torque driver for M3 screws
+    - `THERMAL_CAM`: Thermal imaging camera
+    - `LABEL_PRINTER`: Label printer
+  - **Use case**: Equipment capacity planning, maintenance scheduling
+  - **Constraint**: Tasks with same equipment cannot overlap in time
+- `non_divisible` (⚠️ Phase 1.5 Extended - REQ #42):
+  - **0 (divisible)**: Task can be split across stations if needed
+  - **1 (non-divisible)**: Task must remain whole at one station
+  - **Use case**: Class Code or 12-digit part number based constraints
+  - **Example**: GPU installation must be done at single station
+- `exclude_from_balance` (⚠️ Phase 1.5 Extended - REQ #43b):
+  - **0 (include)**: Normal task included in line balancing
+  - **1 (exclude)**: Excluded from optimization (packaging materials, etc.)
+  - **Use case**: Filter out non-assembly materials from line balance
 - `complexity_level` (⚠️ Phase 1.5 Extended):
   - Assembly complexity classification: `simple`, `medium`, `complex`, `super_complex`
   - Auto-classified based on part characteristics (e.g., graphics card = complex, screw = simple)
@@ -71,7 +102,7 @@ task_id,duration,offline_flag,adjustable,action_type,complexity_level,part_id,pr
 Precedence relationship definition file. This file can be omitted if precedence relationships are already defined in the `predecessors` column of `tasks.csv`.
 
 | Column Name   | Data Type | Required   | Description                                        | Example |
-| ------------- | --------- | ---------- | -------------------------------------------------- | ------- |
+|---------------|-----------|------------|----------------------------------------------------|---------|
 | `before_task` | Integer   | ✅ Required | Predecessor task ID                                | 1       |
 | `after_task`  | Integer   | ✅ Required | Successor task ID (must execute after before_task) | 2       |
 
@@ -96,18 +127,38 @@ before_task,after_task
 System parameter configuration file. If not provided, command-line parameters or default values will be used.
 
 | Column Name | Data Type      | Required   | Description     | Example    |
-| ----------- | -------------- | ---------- | --------------- | ---------- |
+|-------------|----------------|------------|-----------------|------------|
 | `parameter` | String         | ✅ Required | Parameter name  | cycle_time |
 | `value`     | String/Integer | ✅ Required | Parameter value | 20         |
 
 **Supported Parameters:**
 - `cycle_time`: Maximum cycle time limit for workstations
+- `max_workers_per_station`: Maximum workers per station (default: 8) ⚠️ **REQ #45b - per factory override**
+- `site_id`: Site/factory identifier for per-site configuration
+- `station_type`: Station type configuration (`fixed`, `adjustable`, `multi_person`) ⚠️ **REQ #46b**
+- `available_production_hours`: Available production hours per day (for UPH calculation)
 
 **Example File:**
 ```csv
 parameter,value
 cycle_time,20
+max_workers_per_station,4
+site_id,TAO_FACTORY_A
+station_type,adjustable
+available_production_hours,8
 ```
+
+**Per-Site Configuration** (⚠️ REQ #45b):
+- Different factories may have different maximum workers per station
+- Use `site_id` to identify the factory and apply site-specific rules
+- Example: `TAO_FACTORY_A` allows max 6 workers, `MEX_FACTORY_B` allows max 4
+
+**Station Type Definitions** (⚠️ REQ #46b):
+| Type          | Description                                       | Max Workers |
+|---------------|---------------------------------------------------|-------------|
+| `fixed`       | Single-person fixed station, no adjustment        | 1           |
+| `adjustable`  | Adjustable workload, can absorb overflow          | 2-4         |
+| `multi_person`| Designed for multiple workers, parallel tasks OK  | 4-8         |
 
 **Notes:**
 - If `cycle_time` is not provided, the system will auto-estimate: `Total Duration ÷ (Number of Tasks ÷ 3)`
@@ -122,7 +173,7 @@ cycle_time,20
 Specify output path using `--csv_output` parameter.
 
 | Column Name        | Data Type | Description                                 | Example |
-| ------------------ | --------- | ------------------------------------------- | ------- |
+|--------------------|-----------|---------------------------------------------|---------|
 | `task_id`          | Integer   | Task ID                                     | 1       |
 | `station_index`    | Integer   | Assigned workstation number (starts from 0) | 0       |
 | `workers_assigned` | Integer   | Number of workers assigned to this station  | 2       |
@@ -150,7 +201,7 @@ task_id,station_index,workers_assigned,task_duration,cumulative_load
 Specify output path using `--kpi_csv` parameter.
 
 | Column Name | Data Type      | Description             | Unit |
-| ----------- | -------------- | ----------------------- | ---- |
+|-------------|----------------|-------------------------|------|
 | `metric`    | String         | Performance metric name | -    |
 | `value`     | Numeric/String | Metric value            | -    |
 | `unit`      | String         | Value unit              | -    |
@@ -158,7 +209,7 @@ Specify output path using `--kpi_csv` parameter.
 **Included Metrics:**
 
 | metric                   | Description                               | Unit       | Phase |
-| ------------------------ | ----------------------------------------- | ---------- | ----- |
+|--------------------------|-------------------------------------------|------------|-------|
 | `total_stations`         | Total number of stations used             | stations   | 1     |
 | `total_workers`          | Total workforce assigned                  | persons    | 1     |
 | `bottleneck_station`     | Bottleneck station index (highest load)   | -          | 1     |
@@ -219,7 +270,7 @@ merge_efficiency_gain,8.5,percent
 Specify output path using `--station_csv` parameter.
 
 | Column Name          | Data Type | Description                                | Example   | Phase |
-| -------------------- | --------- | ------------------------------------------ | --------- | ----- |
+|----------------------|-----------|--------------------------------------------|-----------|-------|
 | `station_index`      | Integer   | Station number (starts from 0)             | 0         | 1     |
 | `total_load`         | Integer   | Total workload at this station             | 8         | 1     |
 | `idle_vs_bottleneck` | Integer   | Idle time relative to bottleneck station   | 0         | 1     |
@@ -355,7 +406,7 @@ python or-line-balance.py \
 
 ### Input Files
 | File              | Required   | Required Columns            | Optional Columns |
-| ----------------- | ---------- | --------------------------- | ---------------- |
+|-------------------|------------|-----------------------------|------------------|
 | `tasks.csv`       | ✅ Required | `task_id`, `duration`       | `predecessors`   |
 | `precedences.csv` | ❌ Optional | `before_task`, `after_task` | -                |
 | `config.csv`      | ❌ Optional | `parameter`, `value`        | -                |
@@ -373,7 +424,7 @@ All output files are optional and depend on command-line parameters:
 
 ### Input Parameters
 | Parameter           | Type   | Default | Description                                  |
-| ------------------- | ------ | ------- | -------------------------------------------- |
+|---------------------|--------|---------|----------------------------------------------|
 | `--input`           | String | ""      | Input file path (tasks.csv)                  |
 | `--tasks_csv`       | String | ""      | Tasks CSV file path, uses `--input` if empty |
 | `--precedences_csv` | String | ""      | Precedences CSV file path (optional)         |
@@ -381,7 +432,7 @@ All output files are optional and depend on command-line parameters:
 
 ### Solver Parameters
 | Parameter                   | Type    | Default        | Options                                | Description                                     |
-| --------------------------- | ------- | -------------- | -------------------------------------- | ----------------------------------------------- |
+|-----------------------------|---------|----------------|----------------------------------------|-------------------------------------------------|
 | `--objective`               | String  | "min_stations" | min_stations, min_manpower, min_idle   | Optimization objective                          |
 | `--model`                   | String  | "boolean"      | boolean, scheduling, greedy            | Solver model (for min_stations only)            |
 | `--target_takt`             | Integer | 0              | > 0                                    | Target takt time (required for min_manpower)    |
@@ -392,7 +443,7 @@ All output files are optional and depend on command-line parameters:
 
 ### Output Parameters
 | Parameter        | Type   | Default | Description                                     |
-| ---------------- | ------ | ------- | ----------------------------------------------- |
+|------------------|--------|---------|-------------------------------------------------|
 | `--csv_output`   | String | ""      | Task assignment CSV output path                 |
 | `--kpi_csv`      | String | ""      | KPI summary CSV output path                     |
 | `--station_csv`  | String | ""      | Station details CSV output path                 |

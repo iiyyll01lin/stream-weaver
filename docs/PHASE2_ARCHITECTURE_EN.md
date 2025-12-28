@@ -3130,6 +3130,154 @@ CREATE INDEX idx_optimization_history_work_order ON optimization_history(work_or
 
 ---
 
+## Due Date → UPH Conversion Algorithm (REQ #51 Extension)
+
+### Overview
+
+Convert customer `due_date` and `quantity` into minimum required UPH (Units Per Hour) for optimizer constraints. This ensures the optimizer generates solutions that meet delivery deadlines.
+
+### Algorithm Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   Due Date → UPH Conversion Flow                            │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Input:                                                               │  │
+│  │    - due_date: "2026-01-15"                                           │  │
+│  │    - quantity: 500                                                    │  │
+│  │    - available_hours_per_day: 16                                      │  │
+│  │    - available_shifts: 2                                              │  │
+│  │    - current_date: "2025-12-12"                                       │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Step 1: Calculate Available Production Days                         │  │
+│  │    working_days = business_days(current_date, due_date)              │  │
+│  │    # Excludes weekends, holidays per site calendar                   │  │
+│  │    # Example: 2025-12-12 → 2026-01-15 = 23 working days              │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Step 2: Calculate Total Available Hours                             │  │
+│  │    total_hours = working_days × available_hours_per_day              │  │
+│  │    # 23 days × 16 hours = 368 hours                                  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Step 3: Calculate Minimum Required UPH                              │  │
+│  │    min_required_uph = quantity / total_hours                         │  │
+│  │    # 500 / 368 = 1.36 UPH (minimum)                                  │  │
+│  │    # Add safety margin: min_required_uph × 1.1 = 1.50 UPH            │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                               │                                             │
+│                               ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Step 4: Convert to Optimizer Constraint                             │  │
+│  │    max_takt_time = 3600 / min_required_uph                           │  │
+│  │    # 3600 / 1.50 = 2400 seconds (40 minutes max takt)                │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Core Classes
+
+```python
+from datetime import datetime, date, timedelta
+from typing import Optional, List
+from pydantic import BaseModel
+
+class DemandConstraint(BaseModel):
+    sku: str
+    quantity: int
+    due_date: date
+    priority: str = "medium"  # low, medium, high, critical
+
+class UPHCalculationResult(BaseModel):
+    sku: str
+    quantity: int
+    due_date: date
+    working_days: int
+    total_available_hours: float
+    min_required_uph: float
+    min_required_uph_with_margin: float
+    max_takt_time_seconds: float
+    feasibility: str  # "feasible", "at_risk", "infeasible"
+```
+
+### Optimizer Integration
+
+```python
+def apply_due_date_constraints(model, demands, site_config):
+    """Add due date constraints to CP-SAT model."""
+    
+    converter = DueDateToUPHConverter(site_config["calendar"])
+    constraint_data = converter.generate_optimizer_constraints(
+        demands,
+        site_config["available_hours_per_day"],
+        site_config["site_id"]
+    )
+    
+    # Add takt time upper bound constraint
+    global_max_takt = constraint_data["global_max_takt"]
+    
+    # model.Add(takt_time <= global_max_takt)
+    # This ensures solution meets all due dates
+    
+    # Priority-weighted objective
+    for constraint in constraint_data["due_date_constraints"]:
+        weight = constraint["priority_weight"]
+        # Add to objective function with priority weight
+```
+
+---
+
+## Offline Processing Architecture (REQ #4)
+
+### Offline Task Management
+
+Detailed architecture for offline task handling:
+
+1. **Offline Task Identification**
+   - `offline_flag=1` in tasks.csv
+   - Separate optimization path
+   
+2. **Offline Station Assignment**
+   - Assigned to virtual station `OFFLINE-001`
+   - Not included in line takt calculation
+   
+3. **Offline Scheduling**
+   - Can specify `offline_lead_time` (hours before assembly)
+   - Integration with pre-assembly area
+
+### Configuration Schema
+
+```json
+{
+  "work_order_id": "WO_A",
+  "enable_offline_handling": true,
+  "offline_config": {
+    "pre_assembly_hours": 4,
+    "offline_station_capacity": 3,
+    "parallel_offline": true
+  }
+}
+```
+
+---
+
+## Phase 2 Roadmap
+
+| Quarter | Milestone | Features |
+|---------|-----------|----------|
+| Q1 2026 | Core Phase 2 | Multi-line optimization, layout management, fishbone diagrams, product config |
+| Q2 2026 | Advanced Features | NPI/MP workflow, demand input, per-plant thresholds |
+| Q3 2026 | Integration | Advanced layout visualization, dashboard integration |
+
+---
+
 ## Security Design
 
 ### Phase 2 Security Additions

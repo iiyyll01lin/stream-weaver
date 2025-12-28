@@ -158,6 +158,17 @@ Submit optimization request and receive workstation allocation results.
    - Suitable for: Balanced line load
    - Constraint: `fixed_stations` must be > 0
 
+4. **`min_uph`**: Minimize Units Per Hour (maximize throughput) ⚠️ **NEW - REQ #1**
+   - Suitable for: High-volume production, capacity maximization
+   - Constraint: Must specify `daily_demand` (units/day) or `target_uph`
+   - Calculation: UPH = 3600 / takt_time_seconds
+   - Output: `achieved_uph`, `theoretical_max_uph`, `uph_gap_pct`
+
+5. **`min_lines`**: Minimize number of production lines ⚠️ **NEW - REQ #1**
+   - Suitable for: Multi-line scenarios, minimize floor space
+   - Constraint: Must specify `daily_demand` for capacity calculation
+   - Calculation: Lines = ceil(daily_demand / (available_hours × 3600 / takt_time))
+
 **Response (200 OK)**:
 ```json
 {
@@ -329,6 +340,70 @@ Check service health status.
   "available_work_orders": ["WO_A", "WO_B", "WO_C"]
 }
 ```
+
+---
+
+### 5. Export Results (REQ #28, #53) ⚠️ **NEW**
+
+#### `GET /export`
+
+Export optimization results in various formats (CSV, Excel, JSON).
+
+**Query Parameters**:
+```
+GET /export?work_order_id=WO_A&format=xlsx&include_kpi=true
+```
+
+| Parameter       | Type    | Required | Description                                      | Default |
+|-----------------|---------|----------|--------------------------------------------------|---------|
+| `work_order_id` | string  | Yes      | Work order ID                                    | -       |
+| `format`        | string  | No       | Export format: `csv`, `xlsx`, `json`             | `xlsx`  |
+| `include_kpi`   | boolean | No       | Include KPI summary sheet                        | true    |
+| `include_charts`| boolean | No       | Include charts in Excel (Gantt, utilization)     | false   |
+| `language`      | string  | No       | Report language: `en`, `zh-TW`, `zh-CN`, `es`    | `en`    |
+
+**Response (200 OK)**: Binary file download
+
+**Response Headers**:
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="WO_A_optimization_result_20251212.xlsx"
+```
+
+**Excel File Structure** (when `format=xlsx`):
+
+| Sheet Name        | Contents                                                   |
+|-------------------|------------------------------------------------------------|
+| `Summary`         | Work order info, optimization objective, total KPIs        |
+| `Station_Details` | Station-by-station breakdown with tasks, load, utilization |
+| `Task_Assignment` | Task ID, assigned station, duration, predecessors          |
+| `KPI_Metrics`     | All KPI metrics from kpi.csv                               |
+| `Charts`          | Gantt chart, utilization bar chart (if `include_charts`)   |
+
+**Implementation Notes**:
+- Uses `openpyxl` library for Excel generation
+- CSV export provides zip file with multiple CSV files
+- JSON export matches `/optimize` response structure
+
+#### `POST /export/batch`
+
+Export multiple work orders in a single request.
+
+**Request Body**:
+```json
+{
+  "work_order_ids": ["WO_A", "WO_B", "WO_C"],
+  "format": "xlsx",
+  "consolidate": true,
+  "include_comparison": true
+}
+```
+
+**Response (200 OK)**: ZIP file containing all exports
+
+**Use Cases**:
+- REQ #28: Easy Excel-based maintenance and review
+- REQ #53: Download query results for offline analysis
 
 **Field Descriptions**:
 - `algo_available`: Whether `sche-algo.py` exists

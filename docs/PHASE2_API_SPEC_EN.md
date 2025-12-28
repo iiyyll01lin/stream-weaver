@@ -1,6 +1,6 @@
 # Phase 2 API Specification
 
-**Document Version**: 1.0 | **Last Updated**: 2025-11-12  
+**Document Version**: 2.1 | **Last Updated**: 2025-12-13  
 **Related Documents**:
 - [Phase 2 Architecture](PHASE2_ARCHITECTURE_EN.md)
 - [Phase 2 Implementation Guide](PHASE2_IMPLEMENTATION_EN.md)
@@ -18,6 +18,10 @@
   - [Layout Management](#4-layout-management)
   - [Product Configuration](#5-product-configuration)
   - [Cross-Line Task Benchmark](#6-cross-line-task-benchmark)
+  - [Site Configuration (REQ #6)](#7-site-configuration-new)
+  - [Demand Input (REQ #51)](#8-demand-input-new)
+  - [Sequence Adjustment (REQ #49)](#9-sequence-adjustment-new)
+  - [NPI/MP Stage (REQ #50)](#10-npimp-stage-new)
 - [Data Models](#data-models)
 - [Error Handling](#error-handling)
 - [Usage Examples](#usage-examples)
@@ -33,6 +37,10 @@ Phase 2 API extends Phase 1 with:
 3. **Fishbone Diagram**: Visual assembly sequence representation
 4. **Layout Management**: Save/load 2D production line layouts
 5. **Product Configuration**: CTO/BTO mapping database
+6. **Site Configuration**: Per-plant threshold management ⚠️ **NEW - REQ #6**
+7. **Demand Input**: Customer demand and capacity planning ⚠️ **NEW - REQ #51**
+8. **Sequence Adjustment**: Manual assembly order override ⚠️ **NEW - REQ #49**
+9. **NPI/MP Stage**: Production stage differentiation ⚠️ **NEW - REQ #50**
 
 ### API Version
 
@@ -1729,6 +1737,551 @@ Delete a benchmark report.
   "benchmark_id": "BM-20251202-001",
   "status": "deleted",
   "message": "Benchmark report deleted successfully"
+}
+```
+
+---
+
+### 7. Site Configuration (NEW) ⚠️ REQ #6
+
+Per-plant threshold configuration for line type recommendations.
+
+#### 7.1 `GET /site-config/{site_id}`
+
+Retrieve site-specific configuration.
+
+**Path Parameters**:
+- `site_id` (string): Site identifier (e.g., `TAO_FACTORY_A`, `MEX_FACTORY_B`)
+
+**Response (200 OK)**:
+```json
+{
+  "site_id": "TAO_FACTORY_A",
+  "site_name": "Taoyuan Factory A",
+  "line_type_thresholds": {
+    "cell": {
+      "max_tasks": 15,
+      "max_stations": 2,
+      "max_daily_demand": 50,
+      "min_product_mix": 5,
+      "space_limit_sqm": 100
+    },
+    "short_line": {
+      "min_tasks": 15,
+      "max_tasks": 60,
+      "max_stations": 10,
+      "max_daily_demand": 200,
+      "min_product_mix": 2,
+      "space_limit_sqm": 400
+    },
+    "long_line": {
+      "min_tasks": 40,
+      "min_stations": 8,
+      "min_daily_demand": 150,
+      "max_product_mix": 5,
+      "space_limit_sqm": 1000
+    }
+  },
+  "equipment_constraints": {
+    "conveyor_available": true,
+    "agv_available": false,
+    "automated_stations": 2
+  },
+  "worker_constraints": {
+    "max_workers_per_station": 4,
+    "multi_skill_workers": 12,
+    "single_skill_workers": 30
+  },
+  "created_at": "2025-01-15T10:00:00Z",
+  "updated_at": "2025-12-12T08:00:00Z"
+}
+```
+
+---
+
+#### 7.2 `PUT /site-config/{site_id}`
+
+Update site-specific configuration.
+
+**Request Body**:
+```json
+{
+  "line_type_thresholds": {
+    "cell": {
+      "max_tasks": 20,
+      "max_stations": 3
+    }
+  },
+  "worker_constraints": {
+    "max_workers_per_station": 6
+  }
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "site_id": "TAO_FACTORY_A",
+  "status": "updated",
+  "updated_fields": ["line_type_thresholds.cell", "worker_constraints.max_workers_per_station"],
+  "updated_at": "2025-12-12T10:30:00Z"
+}
+```
+
+---
+
+#### 7.3 `GET /site-config`
+
+List all site configurations.
+
+**Query Parameters**:
+```
+GET /site-config?region=APAC&limit=50
+```
+
+**Response (200 OK)**:
+```json
+{
+  "sites": [
+    {"site_id": "TAO_FACTORY_A", "site_name": "Taoyuan Factory A", "region": "APAC"},
+    {"site_id": "MEX_FACTORY_B", "site_name": "Mexico Factory B", "region": "AMER"}
+  ],
+  "total_count": 2
+}
+```
+
+---
+
+#### 7.4 `POST /site-config` ⚠️ REQ #41 (Enhanced)
+
+Create a new site configuration.
+
+**Request Body**:
+```json
+{
+  "site_id": "SG_FACTORY_C",
+  "site_name": "Singapore Factory C",
+  "region": "APAC",
+  "timezone": "Asia/Singapore",
+  "line_type_thresholds": {
+    "cell": { "max_tasks": 15, "max_stations": 2, "max_daily_demand": 50 },
+    "short_line": { "min_tasks": 15, "max_tasks": 60, "max_stations": 10 },
+    "long_line": { "min_tasks": 40, "min_stations": 8, "min_daily_demand": 150 }
+  },
+  "equipment_constraints": {
+    "conveyor_available": true,
+    "agv_available": false
+  },
+  "worker_constraints": {
+    "max_workers_per_station": 4,
+    "multi_skill_workers": 10,
+    "single_skill_workers": 25
+  }
+}
+```
+
+**Response (201 Created)**:
+```json
+{
+  "site_id": "SG_FACTORY_C",
+  "status": "created",
+  "created_at": "2025-12-12T10:30:00Z"
+}
+```
+
+**Validation Rules**:
+- `site_id` must be unique and follow pattern `[A-Z]{2,4}_[A-Z]+_[A-Z]`
+- Region must be one of: `APAC`, `AMER`, `EMEA`
+- Threshold values must be positive integers
+
+---
+
+#### 7.5 `DELETE /site-config/{site_id}` ⚠️ REQ #41 (Enhanced)
+
+Delete a site configuration (soft delete with audit trail).
+
+**Path Parameters**:
+- `site_id` (string): Site identifier to delete
+
+**Response (200 OK)**:
+```json
+{
+  "site_id": "SG_FACTORY_C",
+  "status": "deleted",
+  "deleted_at": "2025-12-12T15:00:00Z",
+  "deleted_by": "admin@company.com",
+  "audit_id": "audit_20251212_001"
+}
+```
+
+**Response (409 Conflict)** - Site has active line configurations:
+```json
+{
+  "error": "site_has_active_configurations",
+  "message": "Cannot delete site with active line configurations",
+  "active_lines": ["LINE_A", "LINE_B"],
+  "suggestion": "Archive or migrate line configurations first"
+}
+```
+
+---
+
+#### 7.6 Site Configuration Admin Portal ⚠️ REQ #41 (Enhanced)
+
+**Purpose**: Self-service maintenance portal for plant administrators to manage site-specific thresholds without developer intervention.
+
+**Portal Features**:
+
+| Feature | Description | User Role |
+|---------|-------------|-----------|
+| **View Sites** | List all site configurations with search/filter | All users |
+| **Create Site** | Add new factory/site with default thresholds | Site Admin |
+| **Edit Thresholds** | Modify line type thresholds per site | Site Admin |
+| **Clone Site** | Copy existing site config as template | Site Admin |
+| **Delete Site** | Soft delete with confirmation | Super Admin |
+| **Audit Log** | View all changes to site configurations | Super Admin |
+
+**UI Wireframe Specification**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Site Configuration Management                           [+ Add Site]   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  🔍 Search: [________________]  Region: [All ▼]  Status: [Active ▼]     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │ TAO_FACTORY_A          Taoyuan Factory A          APAC           │   │
+│  │ Last Updated: 2025-12-12    [Edit] [Clone] [Delete]              │   │
+│  │ ─────────────────────────────────────────────────────────        │   │
+│  │ Cell: max 15 tasks, 2 stations                                   │   │
+│  │ Short Line: 15-60 tasks, 10 stations max                         │   │
+│  │ Long Line: 40+ tasks, 8+ stations                                │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │ MEX_FACTORY_B          Mexico Factory B           AMER           │   │
+│  │ Last Updated: 2025-12-10    [Edit] [Clone] [Delete]              │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  Page 1 of 5  [< Prev] [Next >]                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Edit Site Modal**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Edit Site Configuration: TAO_FACTORY_A                         [X]    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  Basic Information                                                       │
+│  ─────────────────                                                       │
+│  Site Name:    [Taoyuan Factory A_________]                             │
+│  Region:       [APAC ▼]                                                  │
+│  Timezone:     [Asia/Taipei ▼]                                           │
+│                                                                          │
+│  Line Type Thresholds                                                    │
+│  ────────────────────                                                    │
+│                                                                          │
+│  ┌─ Cell Line ──────────────────────────────────────────────────────┐   │
+│  │  Max Tasks: [15___]  Max Stations: [2___]  Max Demand: [50___]   │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  ┌─ Short Line ─────────────────────────────────────────────────────┐   │
+│  │  Min Tasks: [15___]  Max Tasks: [60___]  Max Stations: [10__]    │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  ┌─ Long Line ──────────────────────────────────────────────────────┐   │
+│  │  Min Tasks: [40___]  Min Stations: [8___]  Min Demand: [150_]    │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│                                      [Cancel]  [Save Changes]            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**API Endpoints for Admin Portal**:
+
+```
+# Admin Portal APIs
+GET  /admin/site-configs                    # List with pagination
+POST /admin/site-configs                    # Create new site
+PUT  /admin/site-configs/{site_id}          # Update site
+DELETE /admin/site-configs/{site_id}        # Soft delete
+POST /admin/site-configs/{site_id}/clone    # Clone configuration
+GET  /admin/site-configs/{site_id}/audit    # Get audit history
+GET  /admin/site-configs/export             # Export all configs (CSV/JSON)
+POST /admin/site-configs/import             # Import configs (CSV/JSON)
+```
+
+---
+
+### 8. Demand Input (NEW) ⚠️ REQ #51
+
+Customer demand input and capacity planning.
+
+#### 8.1 `POST /demand-input`
+
+Submit customer demand for capacity analysis.
+
+**Request Body**:
+```json
+{
+  "site_id": "TAO_FACTORY_A",
+  "product_family": "DL360_G11",
+  "demands": [
+    {
+      "sku": "DL360-G11-001",
+      "daily_demand": 150,
+      "priority": "high",
+      "due_date": "2026-01-15"
+    },
+    {
+      "sku": "DL360-G11-002",
+      "daily_demand": 80,
+      "priority": "medium",
+      "due_date": "2026-01-20"
+    }
+  ],
+  "available_hours_per_day": 16,
+  "available_shifts": 2,
+  "available_workers": 45
+}
+```
+
+**Response (200 OK)**:
+```json
+{
+  "demand_id": "demand_20251212_001",
+  "site_id": "TAO_FACTORY_A",
+  "total_daily_demand": 230,
+  "capacity_analysis": {
+    "current_capacity_uph": 25,
+    "required_capacity_uph": 28.75,
+    "capacity_gap": -3.75,
+    "gap_percent": -15.0,
+    "feasible": false,
+    "recommended_action": "Add 1 line or increase workers per station"
+  },
+  "line_recommendations": [
+    {
+      "option": "Add Line C",
+      "additional_workers": 6,
+      "new_capacity_uph": 37.5,
+      "utilization": 0.77
+    },
+    {
+      "option": "Add overtime",
+      "additional_hours": 4,
+      "new_capacity_uph": 31.25,
+      "utilization": 0.92
+    }
+  ],
+  "created_at": "2025-12-12T10:00:00Z"
+}
+```
+
+---
+
+#### 8.2 `GET /capacity-analysis/{site_id}`
+
+Get current capacity analysis for a site.
+
+**Query Parameters**:
+```
+GET /capacity-analysis/TAO_FACTORY_A?product_family=DL360_G11
+```
+
+**Response (200 OK)**:
+```json
+{
+  "site_id": "TAO_FACTORY_A",
+  "product_family": "DL360_G11",
+  "current_lines": 2,
+  "current_capacity_uph": 25,
+  "current_utilization": 0.85,
+  "available_capacity_uph": 4.5,
+  "bottleneck_line": "Line_A",
+  "bottleneck_station": "WS-003"
+}
+```
+
+---
+
+### 9. Sequence Adjustment (NEW) ⚠️ REQ #49
+
+Manual assembly order adjustment with validation.
+
+#### 9.1 `POST /adjust-sequence`
+
+Manually adjust assembly sequence.
+
+**Request Body**:
+```json
+{
+  "work_order_id": "WO_A",
+  "adjustments": [
+    {
+      "task_id": 5,
+      "action": "move_after",
+      "target_task_id": 3,
+      "reason": "Ergonomic consideration - heavy part first"
+    },
+    {
+      "task_id": 8,
+      "action": "assign_to_station",
+      "target_station": 2,
+      "reason": "Equipment availability"
+    }
+  ],
+  "validate_precedence": true,
+  "simulate_only": false
+}
+```
+
+**Parameters**:
+
+| Field                | Type    | Required | Description                                    |
+|----------------------|---------|----------|------------------------------------------------|
+| `work_order_id`      | string  | Yes      | Work order ID                                  |
+| `adjustments`        | array   | Yes      | Array of adjustment operations                 |
+| `adjustments[].task_id` | int  | Yes      | Task to adjust                                 |
+| `adjustments[].action` | string | Yes     | `move_after`, `move_before`, `assign_to_station` |
+| `adjustments[].target_task_id` | int | No | Target task for move operations               |
+| `adjustments[].target_station` | int | No | Target station for assignment                 |
+| `adjustments[].reason` | string | No      | Reason for adjustment (for audit trail)        |
+| `validate_precedence` | boolean | No      | Validate precedence constraints (default: true)|
+| `simulate_only`      | boolean | No       | Only simulate, don't apply (default: false)    |
+
+**Response (200 OK)**:
+```json
+{
+  "adjustment_id": "adj_001",
+  "work_order_id": "WO_A",
+  "adjustments_applied": 2,
+  "precedence_violations": [],
+  "new_sequence": [1, 2, 3, 5, 4, 6, 7, 8, 9],
+  "impact_analysis": {
+    "takt_change_ms": 750,
+    "takt_change_pct": 2.5,
+    "utilization_change_pct": -1.2,
+    "stations_affected": [2, 3]
+  },
+  "warnings": [
+    "Task 5 move increases station 2 load by 15%"
+  ],
+  "applied_at": "2025-12-12T10:30:00Z"
+}
+```
+
+**Error Response (400 Bad Request)**:
+```json
+{
+  "detail": "Precedence violation detected",
+  "violations": [
+    {
+      "task_id": 5,
+      "required_predecessor": 4,
+      "message": "Task 5 cannot be placed before task 4 (precedence constraint)"
+    }
+  ]
+}
+```
+
+---
+
+#### 9.2 `GET /adjustment-history/{work_order_id}`
+
+Get adjustment history for a work order.
+
+**Response (200 OK)**:
+```json
+{
+  "work_order_id": "WO_A",
+  "adjustments": [
+    {
+      "adjustment_id": "adj_001",
+      "user": "john.doe@company.com",
+      "timestamp": "2025-12-12T10:30:00Z",
+      "changes": [
+        {"task_id": 5, "action": "move_after", "target": 3}
+      ],
+      "reason": "Ergonomic consideration"
+    }
+  ],
+  "total_adjustments": 1
+}
+```
+
+---
+
+#### 9.3 `POST /adjustment-rollback/{adjustment_id}`
+
+Rollback a sequence adjustment.
+
+**Response (200 OK)**:
+```json
+{
+  "adjustment_id": "adj_001",
+  "status": "rolled_back",
+  "restored_sequence": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+}
+```
+
+---
+
+### 10. NPI/MP Stage (NEW) ⚠️ REQ #50
+
+Production stage differentiation for New Product Introduction (NPI) vs Mass Production (MP).
+
+#### Extended `POST /optimize` Parameters
+
+Add `stage` and `stage_config` to optimization request:
+
+| Field                       | Type    | Required | Description                                | Phase |
+|-----------------------------|---------|----------|--------------------------------------------|-------|
+| `stage`                     | string  | No       | Production stage: `npi`, `mp`              | 2     |
+| `stage_config`              | object  | No       | Stage-specific configuration               | 2     |
+| `stage_config.learning_curve_factor` | float | No | Time multiplier for NPI (1.0-2.0)       | 2     |
+| `stage_config.target_efficiency` | float | No   | Target efficiency (0.5-1.0)                | 2     |
+| `stage_config.allow_overtime` | boolean | No    | Allow overtime for capacity                | 2     |
+| `stage_config.flexibility_weight` | float | No  | Weight for flexibility in optimization     | 2     |
+
+**Request Body Example**:
+```json
+{
+  "work_order_id": "WO_DL360_G12",
+  "optimization_goal": "min_stations",
+  "stage": "npi",
+  "stage_config": {
+    "learning_curve_factor": 1.25,
+    "target_efficiency": 0.70,
+    "allow_overtime": true,
+    "flexibility_weight": 0.8,
+    "max_rework_rate": 0.05,
+    "line_type_preference": "cell"
+  }
+}
+```
+
+**Response includes stage-specific fields**:
+```json
+{
+  "work_order_id": "WO_DL360_G12",
+  "stage": "npi",
+  "stage_adjustments": {
+    "learning_curve_applied": true,
+    "time_factor": 1.25,
+    "adjusted_takt_ms": 37500,
+    "original_takt_ms": 30000
+  },
+  "npi_recommendations": [
+    "Use cell line for flexibility during debugging",
+    "Plan for 25% longer cycle times in first 100 units",
+    "Consider additional QC station for defect tracking"
+  ],
+  "stations": [ ... ],
+  "kpis": { ... }
 }
 ```
 

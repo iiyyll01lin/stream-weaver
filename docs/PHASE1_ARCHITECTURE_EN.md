@@ -1378,6 +1378,162 @@ solver.parameters.search_branching = cp_model.FIXED_SEARCH
 | `/takt-summary` | GET    | Query takt analysis       | 1     |
 | `/health`       | GET    | Service health check      | 1     |
 | `/api/docs`     | GET    | Swagger UI                | 1     |
+| `/export`       | GET    | Export results (CSV/XLSX) | 1 ⚠️ NEW |
+| `/basic-data/*` | CRUD   | Basic data maintenance    | 1 ⚠️ NEW |
+
+---
+
+## Basic Data Maintenance Portal (REQ #33) ⚠️ NEW
+
+### Portal Overview
+
+A web-based maintenance interface for managing core data elements:
+
+1. **Class Code Management**: CRUD operations for action class codes
+2. **Touch Time (TT) Maintenance**: Standard time updates per action
+3. **Assembly Sequence Editing**: Precedence relationship management
+
+### Portal Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Basic Data Maintenance Portal               │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  portal.html (Maintenance UI)                         │  │
+│  │  ┌─────────────────┬─────────────────┬──────────────┐ │  │
+│  │  │ Class Code Tab  │ Touch Time Tab  │ Sequence Tab │ │  │
+│  │  │ - List/Filter   │ - List/Filter   │ - Graph View │ │  │
+│  │  │ - Add/Edit/Del  │ - Add/Edit/Del  │ - Drag/Drop  │ │  │
+│  │  │ - Import CSV    │ - Import CSV    │ - Validate   │ │  │
+│  │  └─────────────────┴─────────────────┴──────────────┘ │  │
+│  └───────────────────────────────────────────────────────┘  │
+└────────────────────────┬────────────────────────────────────┘
+                         │ REST API
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Basic Data API Layer                      │
+│  - GET/POST/PUT/DELETE /basic-data/class-codes              │
+│  - GET/POST/PUT/DELETE /basic-data/touch-times              │
+│  - GET/POST/PUT/DELETE /basic-data/sequences                │
+│  - POST /basic-data/import (CSV bulk import)                │
+│  - GET /basic-data/export (CSV bulk export)                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### API Endpoints for Basic Data Maintenance
+
+#### Class Code Management
+
+```
+GET    /basic-data/class-codes              # List all class codes
+GET    /basic-data/class-codes/{code_id}    # Get single class code
+POST   /basic-data/class-codes              # Create class code
+PUT    /basic-data/class-codes/{code_id}    # Update class code
+DELETE /basic-data/class-codes/{code_id}    # Delete class code
+```
+
+**Class Code Schema**:
+```json
+{
+  "code_id": "SCREW_M3_INSTALL",
+  "code_name": "Install M3 Screw",
+  "category": "screw",
+  "motion_type": "wrist",
+  "default_duration_ms": 3500,
+  "complexity_level": "simple",
+  "equipment_required": ["TORQUE_DRV_M3"],
+  "part_families": ["SCREW_M3", "SCREW_M4"],
+  "description": "Standard M3 screw installation with torque verification",
+  "created_at": "2025-12-12T10:00:00Z",
+  "updated_by": "john.doe@company.com"
+}
+```
+
+#### Touch Time Management
+
+```
+GET    /basic-data/touch-times              # List all touch times
+GET    /basic-data/touch-times/{tt_id}      # Get single touch time
+POST   /basic-data/touch-times              # Create touch time
+PUT    /basic-data/touch-times/{tt_id}      # Update touch time
+DELETE /basic-data/touch-times/{tt_id}      # Delete touch time
+```
+
+**Touch Time Schema**:
+```json
+{
+  "tt_id": "TT_001",
+  "class_code": "SCREW_M3_INSTALL",
+  "part_id": "SCREW_M3_BRACKET",
+  "product_family": "DL360_G11",
+  "site_id": "TAO_FACTORY_A",
+  "touch_time_ms": 3200,
+  "measurement_date": "2025-11-15",
+  "sample_size": 50,
+  "std_deviation_ms": 350,
+  "min_time_ms": 2800,
+  "max_time_ms": 4100,
+  "notes": "Measured during MP phase, experienced workers",
+  "created_at": "2025-11-16T10:00:00Z"
+}
+```
+
+#### Sequence Management
+
+```
+GET    /basic-data/sequences/{work_order_id}    # Get sequence for WO
+POST   /basic-data/sequences                    # Create/update sequence
+PUT    /basic-data/sequences/{work_order_id}    # Update sequence
+DELETE /basic-data/sequences/{seq_id}           # Delete sequence entry
+```
+
+**Sequence Schema**:
+```json
+{
+  "work_order_id": "WO_DL360_G11",
+  "sequence": [
+    {
+      "task_id": 1,
+      "class_code": "UNPACK_CHASSIS",
+      "predecessors": [],
+      "position": 1
+    },
+    {
+      "task_id": 2,
+      "class_code": "INSTALL_PSU",
+      "predecessors": [1],
+      "position": 2
+    }
+  ],
+  "total_tasks": 45,
+  "version": "1.2",
+  "updated_at": "2025-12-12T10:00:00Z"
+}
+```
+
+#### Bulk Import/Export
+
+```
+POST /basic-data/import
+Content-Type: multipart/form-data
+- file: CSV file
+- type: "class_codes" | "touch_times" | "sequences"
+- mode: "append" | "replace"
+
+GET /basic-data/export?type=class_codes&format=csv
+```
+
+### UI Components
+
+| Component | Technology | Features |
+|-----------|------------|----------|
+| Data Grid | AG-Grid or Tabulator | Sorting, filtering, inline edit |
+| Form Dialog | Modal with validation | Add/edit with real-time validation |
+| CSV Import | File upload + preview | Preview before commit, error highlighting |
+| Sequence Editor | D3.js or Vis.js graph | Visual precedence graph, drag-drop |
+| Audit Trail | Timeline view | Track all changes with user/timestamp |
+
+---
 
 ### B. Environment Variables
 

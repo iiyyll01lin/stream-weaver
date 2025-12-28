@@ -5337,6 +5337,24 @@ alembic upgrade head
 
 ## Testing
 
+### Acceptance Criteria
+
+Phase 2 is complete when all the following criteria are met:
+
+| Feature | Acceptance Criteria | Status |
+|---------|---------------------|--------|
+| Multi-Line Optimization | Can optimize and visualize multiple lines in one request | Planned |
+| Line Type Recommendation | Accurate for sample datasets | Planned |
+| Per-Plant Thresholds (REQ #6) | Correctly applied per site | Planned |
+| Fishbone Diagram | Generated and downloadable (SVG/PNG) | Planned |
+| Layout Editor | Supports drag-and-drop and save/load | Planned |
+| Product Config API | Returns correct CTO/BTO mapping | Planned |
+| NPI/MP Stage (REQ #50) | Differentiation works correctly | Planned |
+| Customer Demand (REQ #51) | Capacity analysis functional | Planned |
+| Sequence Adjustment (REQ #49) | Validation and override works | Planned |
+
+---
+
 ### Integration Tests
 
 Create `tests/test_phase2_integration.py`:
